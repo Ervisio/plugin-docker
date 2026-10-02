@@ -137,6 +137,8 @@ export interface SystemInfo {
   ServerVersion: string;
   DockerRootDir: string;
   CgroupVersion?: string;
+  /** Name -> runtime, e.g. runc, io.containerd.runc.v2, nvidia. */
+  Runtimes?: Record<string, unknown>;
 }
 
 export interface VersionInfo {

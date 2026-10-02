@@ -80,3 +80,10 @@
 @media (prefers-reduced-motion: reduce) { .dk-cr-spin { animation: none; } }
 .dk-cr-fail { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 14px; background: var(--err-s); }
 .dk-cr-fail p { margin: 0; overflow-wrap: anywhere; }
+
+.dk-cr-p { margin: 0; font-size: 12.5px; line-height: 1.5; }
+.dk-cr-capcol { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.dk-cr-capcol > b { font-size: 13px; }
+.dk-cr-cap { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 0; background: var(--acc-s); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; }
+.dk-cr-cap:hover { background: var(--sunk); }
+.dk-cr-cap:focus-visible { outline: 2px solid var(--acc); }

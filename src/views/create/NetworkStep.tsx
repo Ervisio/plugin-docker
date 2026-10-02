@@ -3,11 +3,11 @@ import { networks } from '../../api/resources';
 import { t } from '../../i18n';
 import { Button, Chip, IconButton, Input, Select, Switch } from '../../kit';
 import { Hint, removeAt, replaceAt, Section, type StepProps } from './parts';
-import { kv, type Problems } from './model';
+import { kv } from './model';
 
-type Adv = 'labels' | 'command' | 'user' | 'privileged';
+type Adv = 'labels' | 'command' | 'user' | 'privileged' | 'init' | 'console';
 
-export function NetworkStep({ spec, patch, showErrors, problems }: StepProps & { problems: Problems }) {
+export function NetworkStep({ spec, patch }: StepProps) {
   const { data: nets } = networks.use();
   const [open, setOpen] = useState<Set<Adv>>(() => {
     const s = new Set<Adv>();
@@ -15,6 +15,8 @@ export function NetworkStep({ spec, patch, showErrors, problems }: StepProps & {
     if (spec.command) s.add('command');
     if (spec.user) s.add('user');
     if (spec.privileged) s.add('privileged');
+    if (spec.init) s.add('init');
+    if (spec.tty || spec.openStdin) s.add('console');
     return s;
   });
   const toggle = (a: Adv) => setOpen((s) => { const n = new Set(s); if (n.has(a)) n.delete(a); else n.add(a); return n; });
@@ -37,17 +39,9 @@ export function NetworkStep({ spec, patch, showErrors, problems }: StepProps & {
         </div>
       </Section>
 
-      <Section title={t('create.limits')}>
-        <div className="dk-cr-g2">
-          <Input label={t('create.memory')} mono inputMode="decimal" value={spec.memoryMb} onChange={(e) => patch({ memoryMb: e.target.value })} placeholder="512" end={<span className="dk-muted">MB</span>} hint={t('create.limit.hint')} />
-          <Input label={t('create.cpus')} mono inputMode="decimal" value={spec.cpus} onChange={(e) => patch({ cpus: e.target.value })} placeholder="1.0" hint={t('create.cpus.hint')} />
-        </div>
-        {showErrors && problems.limits && <Hint tone="err" icon="alert">{t(problems.limits)}</Hint>}
-      </Section>
-
       <Section title={t('create.advanced')} note={t('create.optional')}>
         <div className="dk-cr-chips" role="group" aria-label={t('create.advanced')}>
-          {(['labels', 'command', 'user', 'privileged'] as Adv[]).map((a) => (
+          {(['labels', 'command', 'user', 'privileged', 'init', 'console'] as Adv[]).map((a) => (
             <Chip key={a} pressed={open.has(a)} onClick={() => toggle(a)}>{t(`create.adv.${a}`)}</Chip>
           ))}
         </div>
@@ -78,6 +72,19 @@ export function NetworkStep({ spec, patch, showErrors, problems }: StepProps & {
           <div className="dk-cr-sub">
             <Switch checked={spec.privileged} onChange={(v) => patch({ privileged: v })} label={t('create.privileged')} />
             {spec.privileged && <Hint tone="warn" icon="alert">{t('create.privileged.warn')}</Hint>}
+          </div>
+        )}
+        {open.has('init') && (
+          <div className="dk-cr-sub">
+            <Switch checked={spec.init} onChange={(v) => patch({ init: v })} label={t('create.init')} />
+            <p className="dk-muted dk-cr-p">{t('create.init.note')}</p>
+          </div>
+        )}
+        {open.has('console') && (
+          <div className="dk-cr-sub">
+            <Switch checked={spec.openStdin} onChange={(v) => patch({ openStdin: v })} label={t('create.stdin')} />
+            <Switch checked={spec.tty} onChange={(v) => patch({ tty: v })} label={t('create.tty')} />
+            <p className="dk-muted dk-cr-p">{t('create.console.note')}</p>
           </div>
         )}
       </Section>

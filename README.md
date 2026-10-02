@@ -1,7 +1,7 @@
 # Docker plugin for Ervisio
 
 Manage Docker from [Ervisio](https://github.com/Ervisio/ervisio): containers, Compose stacks, images, volumes and
-networks, with live stats, logs, a shell in containers, a create/edit wizard, templates, private registries,
+networks, with live stats, logs, a shell in containers, attach, a file browser and commit to image, a create/edit wizard, templates, private registries,
 automatic updates, alerts and clean-up.
 
 Until Ervisio 0.3.0 this plugin shipped inside Ervisio. It now lives here and is installed from the Ervisio
@@ -18,13 +18,14 @@ Plugins › Updates.
 The manifest is [plugin/manifest.json](plugin/manifest.json). In short:
 
 * **Docker Engine API** on `/var/run/docker.sock` (`capabilities.http`, named `docker`): only the methods and paths
-  listed in its rules (containers, exec, images, volumes, networks, system information, events, prune, registry
+  listed in its rules (containers, exec, file archives, commit, images, volumes, networks, system information, events, prune, registry
   login and image digest lookups). It is an `admin` entry: members
   of the `docker` group use it as themselves, other administrators unlock administrator rights. Access to the Docker
   API is equivalent to root on the machine.
 * **Commands**, all `admin` with `adminUnlessGroup: docker`: `docker compose` (up, pull, down, restart, stop, start,
   config, ls) for stacks, `install -d -m 2775 -g docker /opt/stacks` to create the stacks folder, and `shell`, a terminal (`pty`) running
-  `docker exec -it <container> <shell>`. Every command talks to `unix:///var/run/docker.sock`.
+  `docker exec -it <container> <shell>`, and `attach`, a terminal running
+  `docker attach --sig-proxy=false --detach-keys=ctrl-p,ctrl-q <container>`. Every command talks to `unix:///var/run/docker.sock`.
 * **Folders**: `/opt/stacks` (read and write, `admin`, for Compose stacks) and `~/.config/ervisio/plugins/docker`
   (created on first use; settings, registries, alerts, template sources).
 * **Network**: the plugin frame may fetch template lists from `raw.githubusercontent.com` and
