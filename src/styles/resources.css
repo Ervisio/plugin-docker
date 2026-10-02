@@ -22,7 +22,7 @@
 .dk-act { display: flex; gap: 2px; justify-content: flex-end; align-items: center; }
 .dk-act .ui-btn { color: var(--ink2); }
 .dk-sub code, .dk-mp code { font: 500 12.5px var(--mono); }
-.dk-mp { display: inline-flex; align-items: center; gap: 4px; max-width: 320px; }
+.dk-mp { display: inline-flex; align-items: center; gap: 4px; max-width: 200px; }
 .dk-mp code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink2); }
 
 /* Container chips */
