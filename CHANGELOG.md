@@ -104,6 +104,10 @@ Draft, 2026-10-03. Needs Ervisio 0.5 or later (`minCore` is 0.5.0).
   up to 1 TiB, the `attach` command, Git and backup commands, background jobs and notifications. The Docker API and its
   commands can now run against another environment.
 
+## 2.1.1
+
+* The plugin has a logo: the Docker logo is shown instead of the generic icon in the rail, Plugins and Browse (consoles newer than 0.4.0; older ones keep the icon).
+
 ## 2.1.0
 
 * Stacks started by Portainer now work. Portainer runs `docker compose` inside its own container, so a stack's folder
