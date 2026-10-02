@@ -13,6 +13,7 @@ import { DockerError, docker } from './engine';
 import { currentCaps, currentEnv } from './environments';
 import { envFileNames, originCandidates, originOf, parseTar, rewriteBinds, type BindChange, type BindWarning, type Origin } from './origin';
 import { COMPOSE_FILES, COMPOSE_PROJECT, COMPOSE_SERVICE, COMPOSE_WORKDIR, COMPOSE_ENV_FILE, type Container } from './types';
+import { GIT_META_FILE, composeDirOf, parseGitMeta, type GitMeta } from './gitMeta';
 
 export const STACKS_DIR = '/opt/stacks';
 export const STACK_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -48,6 +49,8 @@ export interface Stack {
   containers: Container[];
   running: number;
   total: number;
+  /** Set for a stack that was cloned from a Git repository. */
+  git?: GitMeta;
 }
 
 /**
@@ -130,13 +133,17 @@ async function readOptional(path: string): Promise<string | null> {
   }
 }
 
-/** Throws not_found when the stack has no compose.yaml. */
-export async function readStack(name: string): Promise<StackFiles> {
+/**
+ * Throws not_found when the stack has no compose file. `gitFile` is the compose file of a Git stack, relative to the
+ * stack folder; its .env sits next to it. The deployed copies stay in the stack folder.
+ */
+export async function readStack(name: string, gitFile?: string): Promise<StackFiles> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   const dir = stackDir(name);
+  const cdir = composeDirOf(dir, gitFile);
   const [compose, env, deployed, deployedEnv] = await Promise.all([
-    fsx.read(`${dir}/${COMPOSE_FILE}`),
-    readOptional(`${dir}/${ENV_FILE}`),
+    fsx.read(`${dir}/${gitFile ?? COMPOSE_FILE}`),
+    readOptional(`${cdir}/${ENV_FILE}`),
     readOptional(`${dir}/${DEPLOYED_FILE}`),
     readOptional(`${dir}/${DEPLOYED_ENV_FILE}`),
   ]);
@@ -170,16 +177,17 @@ async function composeLs(): Promise<ComposeLsEntry[]> {
   }
 }
 
-async function managedNames(): Promise<{ exists: boolean; names: Set<string> }> {
+async function managedNames(): Promise<{ exists: boolean; names: Set<string>; git: Map<string, GitMeta> }> {
   const out = new Set<string>();
   // A paired server keeps its own stack files, out of reach: nothing is managed from here.
-  if (!canManageStacks()) return { exists: true, names: out };
+  if (!canManageStacks()) return { exists: true, names: out, git: new Map() };
+  const git = new Map<string, GitMeta>();
   let entries;
   try {
     entries = await fsx.list(stacksRoot());
   } catch (e) {
     // A remote host has no folder until its first stack is saved: that is not "needs setup".
-    if (isNotFound(e)) return { exists: stacksRoot() !== STACKS_DIR ? await stacksFolderExists() : false, names: out };
+    if (isNotFound(e)) return { exists: stacksRoot() !== STACKS_DIR ? await stacksFolderExists() : false, names: out, git };
     throw e;
   }
   await Promise.all(
@@ -188,13 +196,22 @@ async function managedNames(): Promise<{ exists: boolean; names: Set<string> }> 
       .map(async (e) => {
         try {
           const inner = await fsx.list(stackDir(e.name));
+          if (inner.some((f) => f.name === GIT_META_FILE)) {
+            // A stack cloned from Git keeps its compose file wherever the repository has it.
+            const meta = parseGitMeta(await readOptional(`${stackDir(e.name)}/${GIT_META_FILE}`).catch(() => null));
+            if (meta) {
+              out.add(e.name);
+              git.set(e.name, meta);
+              return;
+            }
+          }
           if (inner.some((f) => f.name === COMPOSE_FILE)) out.add(e.name);
         } catch (err) {
           if (!isNotFound(err)) throw err;
         }
       }),
   );
-  return { exists: true, names: out };
+  return { exists: true, names: out, git };
 }
 
 const STATE_ORDER = ['running', 'restarting', 'paused'];
@@ -219,6 +236,8 @@ export interface StackSources {
   /** False when /opt/stacks does not exist yet. */
   folder: boolean;
   managed: Set<string>;
+  /** Git details of the managed stacks that were cloned from a repository. */
+  git: Map<string, GitMeta>;
   /** Service names per managed stack, read from compose.yaml. */
   names: Map<string, string[]>;
   ls: ComposeLsEntry[];
@@ -226,15 +245,15 @@ export interface StackSources {
 
 /** Everything about stacks that is not in the container list: the folder and `docker compose ls`. */
 export async function loadStackSources(): Promise<StackSources> {
-  const [{ exists: folder, names: managed }, ls] = await Promise.all([managedNames(), composeLs()]);
+  const [{ exists: folder, names: managed, git }, ls] = await Promise.all([managedNames(), composeLs()]);
   const names = new Map<string, string[]>();
   await Promise.all(
     [...managed].map(async (n) => {
-      const text = await readOptional(`${stackDir(n)}/${COMPOSE_FILE}`).catch(() => null);
+      const text = await readOptional(`${stackDir(n)}/${git.get(n)?.compose ?? COMPOSE_FILE}`).catch(() => null);
       names.set(n, text ? serviceNamesOf(text) : []);
     }),
   );
-  return { folder, managed, names, ls };
+  return { folder, managed, git, names, ls };
 }
 
 /** Pure merge of sources and containers into stacks (alphabetical). Managed first is a UI concern. */
@@ -266,6 +285,7 @@ export function buildStacks(src: StackSources, list: Container[]): Stack[] {
       containers: cs,
       running: cs.filter((c) => c.State === 'running').length,
       total: cs.length,
+      git: managed ? src.git.get(name) : undefined,
     });
   }
   return out;
@@ -280,7 +300,7 @@ export async function listStacks(): Promise<Stack[]> {
 /* ---------- writing ---------- */
 
 /** Create /opt/stacks/<name> and write compose.yaml, plus .env when given (an empty .env is written only if one exists or text is given). */
-export async function writeStack(name: string, compose: string, env?: string): Promise<void> {
+export async function writeStack(name: string, compose: string, env?: string, gitFile?: string): Promise<void> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   await ensureStacksFolder();
   try {
@@ -295,10 +315,11 @@ export async function writeStack(name: string, compose: string, env?: string): P
       }
     }
   }
-  await fsx.write(`${stackDir(name)}/${COMPOSE_FILE}`, compose.endsWith('\n') ? compose : compose + '\n');
+  await fsx.write(`${stackDir(name)}/${gitFile ?? COMPOSE_FILE}`, compose.endsWith('\n') ? compose : compose + '\n');
   if (env !== undefined) {
-    const has = (await readOptional(`${stackDir(name)}/${ENV_FILE}`)) !== null;
-    if (env.trim() !== '' || has) await fsx.write(`${stackDir(name)}/${ENV_FILE}`, env);
+    const envPath = `${composeDirOf(stackDir(name), gitFile)}/${ENV_FILE}`;
+    const has = (await readOptional(envPath)) !== null;
+    if (env.trim() !== '' || has) await fsx.write(envPath, env);
   }
 }
 
@@ -322,21 +343,24 @@ const envOpts = (): { env?: string } => {
   return env ? { env } : {};
 };
 
-/** `docker compose up -d` for a managed stack; with `pull` it pulls first. On success compose.yaml and .env are copied to .compose.deployed.yaml and .compose.deployed.env. */
-export async function deployStack(name: string, opts: { pull?: boolean }, onLine: LineHandler): Promise<number> {
+/**
+ * `docker compose up -d` for a managed stack; with `pull` it pulls first. On success compose.yaml and .env are copied to
+ * .compose.deployed.yaml and .compose.deployed.env. A Git stack passes its compose file (`gitFile`); Git stacks live on this server only.
+ */
+export async function deployStack(name: string, opts: { pull?: boolean }, onLine: LineHandler, gitFile?: string): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   if (opts.pull) {
     onLine('stdout', '$ docker compose pull');
-    const code = await runCompose('compose-pull', stackArgs(name), onLine);
+    const code = await (gitFile ? runCompose('compose-pull-git', [name, gitFile], onLine) : runCompose('compose-pull', stackArgs(name), onLine));
     if (code !== 0) return code;
   }
-  onLine('stdout', '$ docker compose up -d --remove-orphans');
-  const code = await runCompose('compose-up', stackArgs(name), onLine);
+  onLine('stdout', '$ docker compose up -d --remove-orphans' + (gitFile ? ' --build' : ''));
+  const code = await (gitFile ? runCompose('compose-up-git', [name, gitFile], onLine) : runCompose('compose-up', stackArgs(name), onLine));
   if (code === 0) {
     try {
-      const text = await fsx.read(`${stackDir(name)}/${COMPOSE_FILE}`);
+      const text = await fsx.read(`${stackDir(name)}/${gitFile ?? COMPOSE_FILE}`);
       await fsx.write(`${stackDir(name)}/${DEPLOYED_FILE}`, text);
-      const env = (await readOptional(`${stackDir(name)}/${ENV_FILE}`)) ?? '';
+      const env = (await readOptional(`${composeDirOf(stackDir(name), gitFile)}/${ENV_FILE}`)) ?? '';
       await fsx.write(`${stackDir(name)}/${DEPLOYED_ENV_FILE}`, env);
     } catch (e) {
       onLine('stderr', `Could not save the deployed copy: ${(e as Error).message}`);
@@ -346,10 +370,16 @@ export async function deployStack(name: string, opts: { pull?: boolean }, onLine
 }
 
 /** Actions on a stack. Managed stacks use their compose file; detected ones (`detected: true`) act by project name. */
-export function stackAction(name: string, action: StackAction, onLine: LineHandler, opts: { detected?: boolean } = {}): Promise<number> {
+export function stackAction(name: string, action: StackAction, onLine: LineHandler, opts: { detected?: boolean; gitFile?: string } = {}): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   if (opts.detected) {
     if (action === 'pull') throw new Error('Pulling needs the compose file');
+    return runCompose(`compose-p-${action}`, [name], onLine);
+  }
+  if (opts.gitFile) {
+    // The compose file is not /opt/stacks/<name>/compose.yaml: pull and down name it, the rest go by project name.
+    if (action === 'pull') return runCompose('compose-pull-git', [name, opts.gitFile], onLine);
+    if (action === 'down') return runCompose('compose-down-git', [name, opts.gitFile], onLine);
     return runCompose(`compose-p-${action}`, [name], onLine);
   }
   return runCompose(`compose-${action}`, stackArgs(name), onLine);
@@ -470,7 +500,7 @@ async function removeTree(path: string, depth = 0): Promise<void> {
   const entries = await fsx.list(path);
   for (const e of entries) {
     const p = `${path}/${e.name}`;
-    if (e.type === 'dir' && depth < 4) await removeTree(p, depth + 1);
+    if (e.type === 'dir' && depth < 40) await removeTree(p, depth + 1);
     await fsx.remove(p);
   }
 }
@@ -479,9 +509,11 @@ async function removeTree(path: string, depth = 0): Promise<void> {
  * Delete a stack: `down` (optionally with volumes), then its folder. Resolves with the exit code of down; the folder
  * is removed only when down succeeded.
  */
-export async function deleteStack(name: string, opts: { volumes?: boolean; folder?: boolean }, onLine: LineHandler): Promise<number> {
+export async function deleteStack(name: string, opts: { volumes?: boolean; folder?: boolean; gitFile?: string }, onLine: LineHandler): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
-  const code = await runCompose(opts.volumes ? 'compose-down-volumes' : 'compose-down', stackArgs(name), onLine);
+  const code = opts.gitFile
+    ? await runCompose(opts.volumes ? 'compose-down-volumes-git' : 'compose-down-git', [name, opts.gitFile], onLine)
+    : await runCompose(opts.volumes ? 'compose-down-volumes' : 'compose-down', stackArgs(name), onLine);
   if (code !== 0) return code;
   if (opts.folder) {
     try {

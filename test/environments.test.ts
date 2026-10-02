@@ -205,7 +205,14 @@ test('every command that names a Docker host is remote with exactly one {env}, a
   const docker = m.capabilities.http.find((h: { name: string }) => h.name === 'docker');
   assert.equal(docker.remote, 'docker');
   let remote = 0;
+  // Git stacks and the background jobs run on this server only (core limit): they name the local socket and the local /opt/stacks.
+  const LOCAL_ONLY = /^(git-.*|ssh-version|compose-.*-git|stack-mark|container-redeploy|volume-backup.*|volume-check)$/;
   for (const c of m.capabilities.commands as { name: string; argv: string[]; args?: { pattern: string }[]; remote?: string }[]) {
+    if (LOCAL_ONLY.test(c.name)) {
+      assert.equal(c.remote, undefined, c.name);
+      assert.ok(!c.argv.includes('{env}'), c.name);
+      continue;
+    }
     const envItems = c.argv.filter((a) => a === '{env}').length;
     assert.ok(!c.argv.some((a) => a.includes('{env}') && a !== '{env}'), `${c.name}: {env} is a whole item`);
     assert.ok(!c.argv.some((a) => a.startsWith('unix://')), `${c.name}: no hard-coded socket`);

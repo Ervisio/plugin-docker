@@ -10,7 +10,9 @@ import { CreatePage } from './CreatePage';
 import { EnvironmentsPage } from './EnvironmentsPage';
 import { ImagesPage } from './ImagesPage';
 import { NetworksPage } from './NetworksPage';
+import { PortainerPage } from './PortainerPage';
 import { RegistriesPage } from './RegistriesPage';
+import { GitStackPage } from './GitStackPage';
 import { StackPage } from './StackPage';
 import { StacksPage } from './StacksPage';
 import { SettingsPage } from './SettingsPage';
@@ -35,6 +37,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <StacksPage />;
     case 'stack':
       return <StackPage name={route.name} />;
+    case 'stack-git':
+      return <GitStackPage />;
     case 'create':
       return <CreatePage from={route.from} image={route.image} prefill={route.prefill} />;
     case 'templates':
@@ -50,7 +54,7 @@ export function ViewHost({ route }: { route: Route }) {
     case 'volumes':
       return <VolumesPage />;
     case 'volume':
-      return <VolumePage name={route.name} />;
+      return <VolumePage name={route.name} focus={route.focus} />;
     case 'networks':
       return <NetworksPage />;
     case 'registries':
@@ -61,6 +65,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <AutoUpdatePage />;
     case 'alerts':
       return <AlertsPage />;
+    case 'portainer':
+      return <PortainerPage />;
     case 'settings':
       return <SettingsPage />;
   }

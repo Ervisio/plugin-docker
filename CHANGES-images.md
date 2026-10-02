@@ -1,6 +1,0 @@
-- Build images: a new Build image page (Images > Build image) makes an image from a Dockerfile you write in the editor (with Dockerfile highlighting), from files, a folder or a .tar / .tar.gz archive you pick, or from a Git URL (`https://github.com/owner/repo.git#branch:subfolder`). Options: several tags, Dockerfile path, target stage, platform, build arguments, labels, build without cache, always pull base images.
-- The build output streams live, one block per Dockerfile step. A failing step turns red with the error under it, and in the editor the failing line is marked. You can cancel a running build; failed builds no longer leave a stopped container behind.
-- Logins stored in Registries are sent with the build, so private base images (FROM registry.example.com/team/base) can be pulled.
-- Uploaded contexts are packed in the browser and compressed; the limit is about 380 KB after compression until the console lifts its request size limits. Use a Git URL for bigger projects.
-- Push to a registry: the upload icon on an image row opens Push. Pick a stored registry or type another address (for example localhost:5000), choose repository and tag; the image is tagged first when needed, and progress shows per layer.
-- Tags: the expanded image row lists every tag, adds a tag, and removes one without deleting the image (the last tag stays).

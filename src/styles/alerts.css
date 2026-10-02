@@ -29,3 +29,4 @@
 .dk-al-warn { margin: 0; color: var(--warn); font-size: 13px; font-weight: 600; }
 .dk-al-ask { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .dk-al-ask b { font-size: 13px; font-weight: 700; margin-right: 4px; }
+.dk-al-ext { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }

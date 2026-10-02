@@ -6,6 +6,9 @@ import { t } from '../../i18n';
 import { Button, Field, Input, Select, toast } from '../../kit';
 import { navigate } from '../../router';
 import { nameOf } from './util';
+import { jobsElsewhere, jobsHere } from '../../api/jobs';
+import { WebhookCard } from '../jobs/Webhooks';
+import { LocalOnlyNote } from '../jobs/shared';
 
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
@@ -15,6 +18,10 @@ export function SettingsTab({ inspect, onChanged }: { inspect: ContainerInspect;
     <div className="dk-c-ov">
       <RenameCard inspect={inspect} onChanged={onChanged} />
       <LimitsCard inspect={inspect} onChanged={onChanged} />
+      {jobsElsewhere() && <div className="dk-card"><h3>{t('hooks.title')}</h3><LocalOnlyNote compact /></div>}
+      {jobsHere() && (
+        <WebhookCard job="container-redeploy" params={{ name: nameOf(inspect.Name) }} label={`Redeploy ${nameOf(inspect.Name)}`} intro={t('hooks.intro.container') + (inspect.Config.Labels?.['com.docker.compose.project'] ? ' ' + t('hooks.container.compose') : '')} />
+      )}
       <div className="dk-card">
         <h3>{t('container.set.recreate')}</h3>
         <p className="dk-muted dk-c-p">{t('container.set.recreateNote')}</p>

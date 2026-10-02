@@ -4,12 +4,14 @@ import { formatBytes, relativeTime } from '../api/format';
 import { containers, diskUsage, volumes } from '../api/resources';
 import type { VolumeInfo } from '../api/types';
 import { t, tn } from '../i18n';
-import { Badge, Button, EmptyState, Icon, IconButton, Input, Segmented, Skeleton, toast, ConfirmDialog } from '../kit';
+import { Badge, Button, DropdownMenu, type MenuItem, EmptyState, Icon, IconButton, Input, Segmented, Skeleton, toast, ConfirmDialog } from '../kit';
 import { removeHelpersOf, sweepHelpers } from '../api/volumes';
 import { navigate, useSearch } from '../router';
 import { DiskBar } from '../ui/DiskBar';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
+import { jobsHere } from '../api/jobs';
+import { BackupSchedules } from './jobs/BackupSchedules';
 import { CopyButton, groupContainers, isAnonymousVolume, matchesText, UsedBy } from './resources/bits';
 
 type Filter = 'all' | 'used' | 'unused';
@@ -25,6 +27,7 @@ export function VolumesPage() {
   const [removing, setRemoving] = useState<VolumeInfo | null>(null);
   // Helper containers left behind by an earlier visit (see api/volumes.ts).
   useEffect(() => { void sweepHelpers().catch(() => undefined); }, []);
+  const [scheduling, setScheduling] = useState<string | null>(null);
 
   const usedBy = useMemo(() => groupContainers(cts, (c) => (c.Mounts ?? []).filter((m) => m.Type === 'volume' && m.Name).map((m) => m.Name!)), [cts]);
   const sizes = useMemo(() => new Map((df?.Volumes ?? []).map((v) => [v.Name, v.UsageData?.Size ?? -1])), [df]);
@@ -40,7 +43,12 @@ export function VolumesPage() {
       hue="term"
       title={t('nav.volumes')}
       subtitle={data ? (df ? tn('res.volumes.sub', { n: list.length, size: formatBytes(total) }) : tn('res.volumes.count', { n: list.length })) : ''}
-      actions={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t('res.volumes.new')}</Button>}
+      actions={
+        <>
+          {jobsHere() && <Button icon="clock" onClick={() => setScheduling('')}>{t('bk.schedule')}</Button>}
+          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t('res.volumes.new')}</Button>
+        </>
+      }
     />
   );
   if (!data && error) return <>{header}<ErrorState error={error} onRetry={() => { resetEngine(); void volumes.refresh(); }} /></>;
@@ -71,6 +79,7 @@ export function VolumesPage() {
       {header}
       <DiskBar />
       {creating && <CreateVolume onClose={() => setCreating(false)} />}
+      {jobsHere() && <BackupSchedules volumes={list.filter((v) => !isAnonymousVolume(v.Name)).map((v) => v.Name)} adding={scheduling !== null} prefill={scheduling || undefined} onDone={() => setScheduling(null)} />}
       <section className="dk-card">
         <div className="dk-bar1">
           <Input fieldClassName="dk-grow" icon="search" placeholder={t('res.volumes.filter')} aria-label={t('res.volumes.filter')} value={q} onChange={(e) => setQ(e.target.value)} />
@@ -114,6 +123,7 @@ export function VolumesPage() {
                       <td>
                         <div className="dk-act">
                           <IconButton icon="files" size="sm" variant="ghost" label={t('volume.open')} onClick={() => navigate({ view: 'volume', name: v.Name })} />
+                          <BackupMenu name={v.Name} anonymous={isAnonymousVolume(v.Name)} onSchedule={() => setScheduling(v.Name)} />
                           <IconButton icon="trash" size="sm" variant="ghost" label={users.length ? t('res.volumes.inUseHint') : t('common.remove')} disabled={users.length > 0} onClick={() => setRemoving(v)} />
                         </div>
                       </td>
@@ -173,5 +183,21 @@ function CreateVolume({ onClose }: { onClose(): void }) {
         <div className="dk-form dk-form--end"><Button variant="primary" icon="plus" loading={busy} disabled={bad} onClick={() => void submit()}>{t('res.volumes.create')}</Button></div>
       </div>
     </section>
+  );
+}
+
+/** The one "Back up" menu of a volume: download now, restore from a file, or schedule (this server only). */
+function BackupMenu({ name, anonymous, onSchedule }: { name: string; anonymous: boolean; onSchedule(): void }) {
+  const items: MenuItem[] = [
+    { id: 'now', label: t('bk.menu.now'), icon: 'download', onSelect: () => navigate({ view: 'volume', name, focus: 'backup' }) },
+    { id: 'restore', label: t('bk.menu.restore'), icon: 'upload', onSelect: () => navigate({ view: 'volume', name, focus: 'restore' }) },
+  ];
+  if (jobsHere() && !anonymous) items.push({ id: 'schedule', label: t('bk.menu.schedule'), icon: 'clock', onSelect: onSchedule });
+  return (
+    <DropdownMenu
+      aria-label={t('bk.menu.for', { name })}
+      items={items}
+      trigger={(p) => <IconButton icon="archive" size="sm" variant="ghost" label={t('bk.menu.for', { name })} {...p} />}
+    />
   );
 }

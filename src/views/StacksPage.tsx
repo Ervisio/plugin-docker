@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { canManageStacks, stackAction, type Stack } from '../api/compose';
+import { currentEnv } from '../api/environments';
 import { useEnv } from '../api/useEnv';
 import { healthOf, isProblem } from '../api/model';
 import { t, tn } from '../i18n';
-import { Badge, Button, Chip, EmptyState, IconButton, Skeleton, toast } from '../kit';
+import { Badge, Button, Chip, DropdownMenu, EmptyState, IconButton, Skeleton, toast } from '../kit';
 import { navigate, useSearch } from '../router';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
@@ -53,7 +54,7 @@ export function StacksPage() {
       icon="layers"
       title={t('stacks.title')}
       subtitle={stacks.length ? tn('stacks.sub', { n: stacks.length, running }) : sources ? t('stacks.sub.none') : ''}
-      actions={<Button variant="primary" icon="plus" disabled={!canNew} title={canNew ? undefined : t('envs.stack.newOff', { env: info?.name ?? '' })} onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
+      actions={<NewStackMenu enabled={canNew} offTitle={canNew ? undefined : t('envs.stack.newOff', { env: info?.name ?? '' })} />}
     />
   );
 
@@ -80,7 +81,7 @@ export function StacksPage() {
           text={t('stacks.empty.text')}
           action={
             <div className="dk-ph-act" style={{ margin: 0 }}>
-              {canNew && <Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
+              {canNew && <NewStackMenu enabled />}
               <Button icon="store" onClick={() => navigate({ view: 'templates' }, { root: true })}>{t('containers.empty.template')}</Button>
             </div>
           }
@@ -95,6 +96,23 @@ export function StacksPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** "New stack": write one, or clone one from Git. */
+function NewStackMenu({ enabled, offTitle }: { enabled: boolean; offTitle?: string }) {
+  // Git stacks are cloned and updated on this server, so another host cannot have them.
+  const here = !currentEnv();
+  if (!enabled) return <Button variant="primary" icon="plus" disabled title={offTitle}>{t('stacks.new')}</Button>;
+  return (
+    <DropdownMenu
+      aria-label={t('stacks.new')}
+      items={[
+        { id: 'write', label: t('stacks.new.write'), icon: 'edit', onSelect: () => navigate({ view: 'stack', name: '' }) },
+        { id: 'git', label: here ? t('stacks.new.git') : t('envs.git.local'), icon: 'git', disabled: !here, onSelect: () => navigate({ view: 'stack-git' }) },
+      ]}
+      trigger={(p) => <Button variant="primary" icon="plus" {...p}>{t('stacks.new')}</Button>}
+    />
   );
 }
 
@@ -113,6 +131,7 @@ function StackCard({ s, busy, onAction }: { s: Stack; busy: boolean; onAction(a:
           <b title={s.name}>{s.name}</b>
           <span className="dk-sk-path" title={s.dir}>{s.dir || '–'}</span>
         </div>
+        {s.git && <Badge tone="neutral">Git</Badge>}
         <Badge tone={s.managed ? 'ok' : 'info'}>{s.managed ? t('stacks.managed') : t('stacks.detected')}</Badge>
       </div>
       <div className="dk-sk-card-n">

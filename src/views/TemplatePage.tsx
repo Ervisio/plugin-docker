@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { containers } from '../api/resources';
 import { composeOf, containerPrefill, CUSTOM_ID, envText, slug, substitute, useTemplates, type Template } from '../api/templates';
 import { useEnv } from '../api/useEnv';
-import { canManageStacks, deployStack, isValidStackName, readStack, writeStack } from '../api/compose';
+import { canManageStacks, deployStack, fsx, isValidStackName, readStack, stackDir, writeStack } from '../api/compose';
+import { GIT_META_FILE } from '../api/gitMeta';
 import { TEMPLATES_DIR } from '../api/customTemplates';
 import { maskedText } from '../api/dotenv';
 import { COMPOSE_PROJECT } from '../api/types';
@@ -120,7 +121,8 @@ function App({ tpl }: { tpl: Template }) {
       try {
         await readStack(name);
       } catch {
-        exists = false;
+        // A stack cloned from Git may keep its compose file in a sub-folder.
+        exists = await fsx.read(`${stackDir(name)}/${GIT_META_FILE}`).then(() => true, () => false);
       }
       if (exists) throw new Error(t('templates.err.stackExists'));
       setLines([t('templates.step.fetch')]);

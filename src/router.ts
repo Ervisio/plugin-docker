@@ -37,6 +37,7 @@ export type Route =
   | { view: 'container'; id: string; tab?: 'overview' | 'logs' | 'stats' | 'shell' | 'attach' | 'files' | 'inspect' | 'settings' }
   | { view: 'stacks' }
   | { view: 'stack'; name: string }
+  | { view: 'stack-git' }
   | { view: 'create'; /** container id to edit (recreate with the same settings) */ from?: string; /** image to start from */ image?: string; /** values to start the form with (from a template) */ prefill?: CreatePrefill }
   | { view: 'templates' }
   | { view: 'template'; id: string }
@@ -44,18 +45,19 @@ export type Route =
   | { view: 'images' }
   | { view: 'build' }
   | { view: 'volumes' }
-  | { view: 'volume'; name: string }
+  | { view: 'volume'; name: string; /** scroll to a part of the page */ focus?: 'backup' | 'restore' | 'schedule' }
   | { view: 'networks' }
   | { view: 'registries' }
   | { view: 'cleanup' }
   | { view: 'autoupdate' }
   | { view: 'alerts' }
+  | { view: 'portainer' }
   | { view: 'settings' };
 
 export type View = Route['view'];
 
 /** Sidebar entries: each is a top-level route. */
-export type NavId = 'environments' | 'activity' | 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'settings';
+export type NavId = 'environments' | 'activity' | 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'portainer' | 'settings';
 
 /** Which sidebar entry is lit for a route. */
 export function sectionOf(r: Route): NavId {
@@ -68,6 +70,7 @@ export function sectionOf(r: Route): NavId {
     case 'volume':
       return 'volumes';
     case 'stack':
+    case 'stack-git':
       return 'stacks';
     case 'template':
     case 'template-edit':

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { clearAlertHistory, fireTestAlert, useAlertHistory, useAlertStatus } from '../api/alerts';
+import { canNotify, clearAlertHistory, fireTestAlert, sendTestNotification, useAlertHistory, useAlertStatus } from '../api/alerts';
 import { relativeTime } from '../api/format';
 import { t } from '../i18n';
 import { Button, EmptyState, Icon, IconButton, Switch, toast } from '../kit';
@@ -17,7 +17,22 @@ export function AlertsPage(_props: RouteProps<'alerts'>) {
   const [editing, setEditing] = useState<string | null>(null); // rule id, or 'new'
   const [draft, setDraft] = useState<AlertRule | null>(null);
   const [removing, setRemoving] = useState<AlertRule | null>(null);
+  const [testing, setTesting] = useState(false);
   const rules = file.rules;
+
+  const testChannels = async () => {
+    setTesting(true);
+    try {
+      const r = await sendTestNotification();
+      if (r.channels === 0) toast.info(t('alerts.ch.none.title'), t('alerts.ch.none.text'));
+      else if (r.failed > 0) toast.err(t('alerts.ch.failed.title', { n: r.failed }), t('alerts.ch.failed.text'));
+      else toast.ok(t('alerts.ch.ok', { n: r.delivered }));
+    } catch (e) {
+      toast.err(t('alerts.ch.fail'), (e as Error).message);
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const save = async (next: AlertRule[]) => {
     try {
@@ -45,6 +60,7 @@ export function AlertsPage(_props: RouteProps<'alerts'>) {
         actions={
           <>
             <Button icon="zap" onClick={fireTestAlert}>{t('alerts.test')}</Button>
+            {canNotify() && <Button icon="bell" loading={testing} onClick={() => void testChannels()}>{t('alerts.ch.test')}</Button>}
             <Button variant="primary" icon="plus" onClick={() => { setDraft(defaultRule('stopped')); setEditing('new'); }}>{t('alerts.add')}</Button>
           </>
         }
@@ -88,6 +104,7 @@ export function AlertsPage(_props: RouteProps<'alerts'>) {
                   <b>{t(`alerts.kind.${r.kind}`)}</b>
                   <span>{summary(r)}</span>
                 </div>
+                {r.notify && <span className="dk-tag" title={t('alerts.form.notify.hint')}>{t('alerts.ch.badge')}</span>}
                 <span className="dk-tag dk-al-scope-tag">{scopeText(r)}</span>
                 <Switch checked={r.enabled} aria-label={`${t('alerts.on')}: ${t(`alerts.kind.${r.kind}`)}`} onChange={(v) => void save(rules.map((x) => (x.id === r.id ? { ...x, enabled: v } : x)))} />
                 <IconButton icon="edit" label={t('alerts.edit')} size="sm" onClick={() => { setDraft(null); setEditing(r.id); }} />

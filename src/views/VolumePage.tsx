@@ -11,14 +11,16 @@ import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
 import { FilesTab } from './container/FilesTab';
 import { Hint } from './create/parts';
-import { UsedBy } from './resources/bits';
+import { jobsHere } from '../api/jobs';
+import { BackupSchedules } from './jobs/BackupSchedules';
+import { isAnonymousVolume, UsedBy } from './resources/bits';
 import { useHelperImage } from './volume/useHelperImage';
 
 /**
  * One volume: browse its files, download a backup, restore a backup. All three use a short-lived helper container (see
  * api/volumes.ts), created only when the user asks and removed as soon as the work is done.
  */
-export function VolumePage({ name }: { name: string }) {
+export function VolumePage({ name, focus }: { name: string; focus?: 'backup' | 'restore' | 'schedule' }) {
   const vols = volumes.use();
   const cts = containers.use().data ?? [];
   const df = diskUsage.use().data;
@@ -32,6 +34,10 @@ export function VolumePage({ name }: { name: string }) {
   useEffect(() => {
     void sweepHelpers(mine.current).catch(() => undefined);
   }, []);
+  useEffect(() => {
+    if (!focus || !vol) return;
+    document.getElementById(`dk-vol-${focus}`)?.scrollIntoView({ block: 'start' });
+  }, [focus, !!vol]);
   useEffect(() => () => mine.current.forEach((id) => void removeContainer(id).catch(() => undefined)), []);
 
   if (!vol && vols.error) return <><PageHeader icon="database" hue="term" title={name} back /><ErrorState error={vols.error} onRetry={() => void volumes.refresh()} /></>;
@@ -52,6 +58,7 @@ export function VolumePage({ name }: { name: string }) {
       </section>
       <BrowseCard name={name} size={size} ensureImage={image.ensure} track={track} />
       <BackupCard name={name} size={size} users={users} ensureImage={image.ensure} track={track} />
+      {jobsHere() && !isAnonymousVolume(name) && <ScheduleCard name={name} />}
       <RestoreCard name={name} users={users} ensureImage={image.ensure} track={track} />
       {image.dialog}
     </>
@@ -136,7 +143,7 @@ function BackupCard({ name, size, users, ensureImage, track }: CardProps & { siz
   };
 
   return (
-    <section className="dk-cr-card" aria-label={t('volume.backup.title')}>
+    <section id="dk-vol-backup" className="dk-cr-card" aria-label={t('volume.backup.title')}>
       <h3>{t('volume.backup.title')}</h3>
       <p className="dk-muted dk-bk-p">{t('volume.backup.text')}</p>
       {running.length > 0 && <Hint tone="warn" icon="alert">{t('volume.backup.running', { names: running.map(containerName).join(', ') })}</Hint>}
@@ -229,7 +236,7 @@ function RestoreCard({ name, users, ensureImage, track }: CardProps & { users: C
   };
 
   return (
-    <section className="dk-cr-card" aria-label={t('volume.restore.title')}>
+    <section id="dk-vol-restore" className="dk-cr-card" aria-label={t('volume.restore.title')}>
       <h3>{t('volume.restore.title')}</h3>
       <p className="dk-muted dk-bk-p">{t('volume.restore.text')}</p>
       <div className="dk-cr-row">
@@ -271,6 +278,19 @@ function RestoreCard({ name, users, ensureImage, track }: CardProps & { users: C
         {users.length > 0 && <p className="dk-warn-p"><Icon name="alert" />{t('volume.restore.confirmUsers', { names: users.map(containerName).join(', ') })}</p>}
         {running.length > 0 && <p className="dk-muted">{stopThem ? t('volume.restore.confirmStop') : t('volume.restore.confirmNoStop')}</p>}
       </ConfirmDialog>
+    </section>
+  );
+}
+
+/** Scheduled backups of this volume (the schedules run on this server). */
+function ScheduleCard({ name }: { name: string }) {
+  const [adding, setAdding] = useState(false);
+  return (
+    <section id="dk-vol-schedule" className="dk-cr-card" aria-label={t('bk.card.title')}>
+      <h3>{t('bk.card.title')}</h3>
+      <p className="dk-muted dk-bk-p">{t('bk.card.text')}</p>
+      {!adding && <div className="dk-cr-row"><Button icon="clock" onClick={() => setAdding(true)}>{t('bk.menu.schedule')}</Button></div>}
+      <BackupSchedules volumes={[name]} only={name} prefill={name} adding={adding} onDone={() => setAdding(false)} />
     </section>
   );
 }

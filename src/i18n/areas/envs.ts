@@ -48,6 +48,11 @@ const s: AreaStrings = {
     'envs.stack.binds': 'Bind mounts such as ./data or /srv/app name folders on {env}, not on this server. Create them there first.',
     'envs.stack.paired': 'Stack files of {env} are on that server and cannot be edited from here. You can start, stop, restart and remove the stacks it already runs; to create or edit one, open Ervisio on {env}.',
     'envs.stack.newOff': 'New stacks cannot be created on {env} from here',
+    'envs.jobs.title': 'This part runs on this server only',
+    'envs.jobs.text': 'Git stacks, redeploy webhooks, automatic updates and scheduled backups run in the background on the server that runs Ervisio, not on {env}. Open this server to use them.',
+    'envs.git.local': 'From a Git repository (this server only)',
+    'envs.jobs.short': 'Runs on this server only. Open this server to use it.',
+    'envs.portainer.text': 'The import reads Portainer through this server and writes stacks and templates here, so it works on this server only. Open this server to import from Portainer.',
     'envs.stack.detectedRemote': 'This project was started outside this plugin and runs on {env}. You can start, stop, restart and take it down here. Its files stay where they are.',
     'envs.stack.noConfig': 'This project\'s files are on {env}, so its configuration cannot be shown here.',
 
@@ -135,6 +140,11 @@ const s: AreaStrings = {
     'envs.stack.binds': 'I bind mount come ./data o /srv/app indicano cartelle su {env}, non su questo server. Creale prima là.',
     'envs.stack.paired': 'I file degli stack di {env} sono su quel server e non si possono modificare da qui. Puoi avviare, fermare, riavviare e rimuovere gli stack che già esegue; per crearne o modificarne uno apri Ervisio su {env}.',
     'envs.stack.newOff': 'Da qui non si possono creare nuovi stack su {env}',
+    'envs.jobs.title': 'Questa parte funziona solo su questo server',
+    'envs.jobs.text': 'Gli stack Git, i webhook di redeploy, gli aggiornamenti automatici e i backup pianificati girano in background sul server che esegue Ervisio, non su {env}. Apri questo server per usarli.',
+    'envs.git.local': 'Da un repository Git (solo questo server)',
+    'envs.jobs.short': 'Funziona solo su questo server. Apri questo server per usarlo.',
+    'envs.portainer.text': 'L\'importazione legge Portainer tramite questo server e scrive qui stack e template, quindi funziona solo su questo server. Apri questo server per importare da Portainer.',
     'envs.stack.detectedRemote': 'Questo progetto è stato avviato fuori da questo plugin e gira su {env}. Puoi avviarlo, fermarlo, riavviarlo e spegnerlo da qui. I suoi file restano dove sono.',
     'envs.stack.noConfig': 'I file di questo progetto sono su {env}, quindi la sua configurazione non si può mostrare qui.',
 

@@ -3,7 +3,8 @@ import { containerName } from '../../api/format';
 import { stackOf } from '../../api/model';
 import { containers } from '../../api/resources';
 import { t } from '../../i18n';
-import { Button, Input, Segmented, Select } from '../../kit';
+import { canNotify } from '../../api/alerts';
+import { Button, Input, Segmented, Select, Switch } from '../../kit';
 import type { AlertRule } from '../../settings';
 import { KINDS, defaultRule, valid } from './rules';
 
@@ -88,6 +89,12 @@ export function RuleForm({ initial, isNew, onSave, onCancel }: { initial: AlertR
         )}
         {r.kind === 'disk' && field(t('alerts.form.disk'), r.threshold, 'threshold')}
       </div>
+      {canNotify() && (
+        <div className="dk-al-ext">
+          <Switch checked={!!r.notify} onChange={(v) => patch({ notify: v })} label={t('alerts.form.notify')} />
+          <span className="dk-muted">{t('alerts.form.notify.hint')}</span>
+        </div>
+      )}
       {!ok && <p className="dk-al-warn">{t('alerts.form.invalid')}</p>}
       <div className="dk-al-btns">
         <Button variant="primary" icon="check" disabled={!ok} onClick={() => onSave(r)}>{t('alerts.form.save')}</Button>

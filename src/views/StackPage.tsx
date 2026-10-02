@@ -21,6 +21,12 @@ import { MovePreview } from './stack/MovePreview';
 import { ServicesCard } from './stack/ServicesCard';
 import { SetupCard } from './stack/SetupCard';
 import { useStacks } from './stack/useStacks';
+import { GitCard } from './stack/GitCard';
+import { AutoUpdateCard } from './jobs/AutoUpdate';
+import { WebhookCard } from './jobs/Webhooks';
+import { LocalOnlyNote } from './jobs/shared';
+import { detachStack, pullAndRedeploy, removeCredentials } from '../api/git';
+import { jobsElsewhere, jobsHere, removeInstances, POLL_JOBS } from '../api/jobs';
 import { validateCompose, validateEnv, type Issue, type Validation } from './stack/validate';
 
 type Tab = 'compose' | 'env' | 'diff';
@@ -122,6 +128,8 @@ const useAlive = () => {
 
 function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void> }) {
   const { name } = stack;
+  const git = stack.git;
+  const gitFile = git?.compose;
   const [files, setFiles] = useState<StackFiles | null>(null);
   const [loadErr, setLoadErr] = useState<Error | null>(null);
   const [compose, setCompose] = useState('');
@@ -130,7 +138,9 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
   const [tab, setTab] = useState<Tab>('compose');
   const [pull, setPull] = useState(true);
   const [deployedAt, setDeployedAt] = useState<number>();
-  const [confirm, setConfirm] = useState<'down' | 'delete' | null>(null);
+  const [confirm, setConfirm] = useState<'down' | 'delete' | 'detach' | null>(null);
+  const [guard, setGuard] = useState<null | { go(): Promise<unknown> }>(null);
+  const [gitTick, setGitTick] = useState(0);
   const [rmVolumes, setRmVolumes] = useState(false);
   const [rmFolder, setRmFolder] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -141,7 +151,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
 
   const load = useCallback(async () => {
     try {
-      const f = await readStack(name);
+      const f = await readStack(name, gitFile);
       if (!alive.current) return;
       setFiles(f);
       setLoadErr(null);
@@ -149,7 +159,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
     } catch (e) {
       if (alive.current) setLoadErr(e as Error);
     }
-  }, [name, alive]);
+  }, [name, alive, gitFile]);
 
   const loadMtime = useCallback(async () => {
     try {
@@ -195,8 +205,9 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
   const save = async (): Promise<boolean> => {
     setSaving(true);
     try {
-      await writeStack(name, compose, env);
+      await writeStack(name, compose, env, gitFile);
       setFiles((f) => (f ? { ...f, compose, env } : f));
+      setGitTick((n) => n + 1);
       return true;
     } catch (e) {
       toast.err(t('stacks.saveFail'), (e as Error).message);
@@ -206,15 +217,44 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
     }
   };
 
+  const pullGit = async () => {
+    if (!git) return;
+    if (dirty && !(await save())) return;
+    const code = await logged(name, t('git.pull.title'), (on) => pullAndRedeploy(name, git, on));
+    if (code === 0) toast.ok(t('git.pull.done', { name }));
+    else toast.err(t('stacks.runFail'), t('stacks.runFailText'));
+    setGitTick((n) => n + 1);
+    const f = await load();
+    if (f) { setCompose(f.compose); setEnv(f.env); }
+    await Promise.all([loadMtime(), reload()]);
+  };
+
+  const doDetach = async () => {
+    try {
+      const r = await detachStack(name);
+      await removeInstances([...POLL_JOBS, 'git-redeploy'], 'name', name);
+      toast.ok(t('git.detach.done', { name }), r.copied ? t('git.detach.copied') : undefined);
+      await reload();
+    } catch (e) {
+      toast.err(t('git.detach.fail'), (e as Error).message);
+    }
+  };
+
   const afterRun = async (code: number, okMsg: string) => {
     if (code === 0) toast.ok(okMsg);
     else toast.err(t('stacks.runFail'), t('stacks.runFailText'));
     await Promise.all([load(), loadMtime(), reload()]);
   };
 
+  /** A Git stack's compose file comes from the repository: ask before a local change that the next update replaces. */
+  const withGitGuard = (go: () => Promise<unknown>) => {
+    if (git && files && compose !== files.compose) setGuard({ go });
+    else void go();
+  };
+
   const deploy = async () => {
     if (dirty && !(await save())) return;
-    const code = await logged(name, t('stacks.deploy.title'), (on) => deployStack(name, { pull }, on));
+    const code = await logged(name, t('stacks.deploy.title'), (on) => deployStack(name, { pull }, on, gitFile));
     await afterRun(code, t('stacks.deploy.done', { name }));
   };
 
@@ -222,15 +262,19 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
     if (dirty && action === 'pull' && !(await save())) return;
     const code = await logged(name, t(`stacks.act.${action}`), (on) => {
       on('stdout', `$ docker compose ${action}`);
-      return stackAction(name, action, on);
+      return stackAction(name, action, on, { gitFile });
     });
     await afterRun(code, t(`stacks.done.${action}`, { name }));
   };
 
   const doDelete = async () => {
-    const code = await logged(name, t('stacks.delete.title', { name }), (on) => deleteStack(name, { volumes: rmVolumes, folder: rmFolder }, on));
+    const code = await logged(name, t('stacks.delete.title', { name }), (on) => deleteStack(name, { volumes: rmVolumes, folder: rmFolder, gitFile }, on));
     if (code === 0) {
       toast.ok(t('stacks.delete.done', { name }));
+      if (rmFolder) {
+        await removeInstances([...POLL_JOBS, 'git-redeploy', 'stack-redeploy'], 'name', name);
+        if (git) await removeCredentials(name);
+      }
       await reload();
       navigate({ view: 'stacks' }, { root: true });
     } else {
@@ -250,17 +294,18 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
     <PageHeader
       icon="layers"
       title={<>{name} {badge}</>}
-      subtitle={<span className="dk-sk-path">{stackDir(name)}/{COMPOSE_FILE}</span>}
+      subtitle={<span className="dk-sk-path">{stackDir(name)}/{gitFile ?? COMPOSE_FILE}</span>}
       back
       actions={
         <>
           <Button icon="download" disabled={running} onClick={() => run('pull')}>{t('stacks.pull')}</Button>
           <Button icon="stop" disabled={running || !total} onClick={() => setConfirm('down')}>{t('stacks.down')}</Button>
           <Button icon="refresh" disabled={running || !total} onClick={() => run('restart')}>{t('common.restart')}</Button>
-          <Button variant="primary" icon="play" loading={running && out?.title === t('stacks.deploy.title')} disabled={running || blocked || !files} title={blocked ? t('stacks.fixFirst') : undefined} onClick={deploy}>{t('stacks.deployChanges')}</Button>
+          {git && <Button variant="primary" icon="download" loading={running && out?.title === t('git.pull.title')} disabled={running} onClick={() => void pullGit()}>{t('git.pull')}</Button>}
+          <Button variant={git ? 'secondary' : 'primary'} icon="play" loading={running && out?.title === t('stacks.deploy.title')} disabled={running || blocked || !files} title={blocked ? t('stacks.fixFirst') : undefined} onClick={() => withGitGuard(deploy)}>{t('stacks.deployChanges')}</Button>
           <DropdownMenu
             aria-label={t('stacks.more')}
-            items={[{ id: 'template', label: t('stacks.saveTemplate'), icon: 'store', onSelect: () => navigate({ view: 'template-edit', seed: seedFromStack(name, compose, env) }) }, { type: 'separator' }, { id: 'delete', label: t('stacks.delete.menu'), icon: 'trash', danger: true, onSelect: () => setConfirm('delete') }]}
+            items={[{ id: 'template', label: t('stacks.saveTemplate'), icon: 'store', onSelect: () => navigate({ view: 'template-edit', seed: seedFromStack(name, compose, env) }) }, ...(git ? [{ id: 'detach', label: t('git.detach'), icon: 'git', onSelect: () => setConfirm('detach') }] : []), { type: 'separator' }, { id: 'delete', label: t('stacks.delete.menu'), icon: 'trash', danger: true, onSelect: () => setConfirm('delete') }]}
             trigger={(p) => <Button variant="ghost" icon="more" iconOnly aria-label={t('stacks.more')} {...p} />}
           />
         </>
@@ -286,11 +331,12 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
         <Card className="dk-sk-edcard">
           <div className="dk-sk-edh">
             <Tabs3 tab={tab} onTab={setTab} diffCount={changedCount} canDiff={files.deployed != null} />
-            <Button size="sm" variant="ghost" icon="download" disabled={!dirty || saving} loading={saving} onClick={() => void save().then((ok) => ok && toast.ok(t('stacks.saved')))}>{t('common.save')}</Button>
+            <Button size="sm" variant="ghost" icon="download" disabled={!dirty || saving} loading={saving} onClick={() => withGitGuard(() => save().then((ok) => ok && toast.ok(t('stacks.saved'))))}>{t('common.save')}</Button>
           </div>
+          {git && compose !== files.compose && <div className="dk-jb-warn" role="status"><Icon name="alert" /><div><b>{t('git.edit.title')}</b><p>{t('git.edit.text')}</p></div></div>}
           <Validity v={v} envIssues={envIssues} changed={changedCount} deployed={files.deployed != null} dirty={dirty} onJump={jump} />
           <div ref={edRef}>
-            {tab === 'compose' && <CodeEditor value={compose} onChange={setCompose} lang="yaml" issues={v.issues} changed={sum?.changedLines} label="compose.yaml" />}
+            {tab === 'compose' && <CodeEditor value={compose} onChange={setCompose} lang="yaml" issues={v.issues} changed={sum?.changedLines} label={gitFile ?? 'compose.yaml'} />}
             {tab === 'env' && <EnvEditor value={env} onChange={setEnv} compose={compose} advanced={envAdvanced} onAdvanced={setEnvAdvanced} issues={envIssues} />}
             {tab === 'diff' && files.deployed != null && (
               <div className="dk-sk-diffs">
@@ -313,6 +359,12 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
           <Card title={t('stacks.services')}>
             <ServicesCard services={services} images={images} />
           </Card>
+          {git && <GitCard name={name} meta={git} tick={gitTick} busy={running} onPull={() => void pullGit()} onDetach={() => setConfirm('detach')} />}
+          {git && jobsHere() && <AutoUpdateCard name={name} meta={git} />}
+          {jobsElsewhere() && <Card title={t('hooks.title')}><LocalOnlyNote compact /></Card>}
+          {jobsHere() && (git
+            ? <WebhookCard job="git-redeploy" params={{ name, ref: git.ref, file: git.compose }} label={`Redeploy ${name}`} intro={t('hooks.intro.git')} />
+            : <WebhookCard job="stack-redeploy" params={{ name }} label={`Redeploy ${name}`} intro={t('hooks.intro.stack')} />)}
           <Card
             title={t('stacks.lastDeploy')}
             action={deployedAt ? <span className="dk-muted">{t('stacks.deploy.lastAt', { ago: new Date(deployedAt > 1e11 ? deployedAt : deployedAt * 1000).toLocaleString() })}</span> : undefined}
@@ -331,6 +383,26 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
         description={t('stacks.downText')}
         confirmLabel={t('stacks.down')}
         icon="stop"
+      />
+      <Confirm
+        open={confirm === 'detach'}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => { setConfirm(null); void doDetach(); }}
+        title={t('git.detach.title', { name })}
+        description={t('git.detach.text')}
+        confirmLabel={t('git.detach')}
+        danger={false}
+        icon="git"
+      />
+      <Confirm
+        open={!!guard}
+        onClose={() => setGuard(null)}
+        onConfirm={async () => { const g = guard; setGuard(null); await g?.go(); }}
+        title={t('git.guard.title')}
+        description={t('git.guard.text')}
+        confirmLabel={t('git.guard.confirm')}
+        danger={false}
+        icon="alert"
       />
       <Confirm
         open={confirm === 'delete'}
