@@ -12,6 +12,8 @@ export function registerDockerIcons(): void {
 
 /** Icon of each sidebar entry. */
 export const NAV_ICONS = {
+  environments: 'server',
+  activity: 'clock',
   containers: 'box',
   stacks: 'layers',
   templates: 'store',

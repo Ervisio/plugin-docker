@@ -9,6 +9,7 @@
  * forbidden) arrive as PluginError with `code`; classify() turns either kind into something to show.
  */
 import { getSdk, type DownloadStarted, type HttpRequest, type HttpResponse, type PluginError, type Query, type UploadHandle, type UploadOptions } from '../sdk';
+import { currentEnv, onEnvChange } from './environments';
 import type { VersionInfo } from './types';
 
 export const HTTP_NAME = 'docker';
@@ -30,32 +31,40 @@ export interface RequestOptions {
   body?: HttpRequest['body'];
 }
 
-let versionPromise: Promise<VersionInfo> | undefined;
+/** The negotiated API version per environment: a remote engine may be older than this machine's. */
+const versions = new Map<string, Promise<VersionInfo>>();
+const envKey = (env: string | undefined): string => env ?? '';
 
-/** GET /version once; a failed attempt is retried by the next call. */
-export function engineVersion(): Promise<VersionInfo> {
-  if (!versionPromise) {
-    versionPromise = getSdk()
-      .api.http(HTTP_NAME, { method: 'GET', path: '/version' })
+/** GET /version once per environment (undefined = this server, never "the open one": ask with engineVersionHere()); a failed attempt is retried by the next call. */
+export function engineVersion(env: string | undefined): Promise<VersionInfo> {
+  const key = envKey(env);
+  let p = versions.get(key);
+  if (!p) {
+    p = getSdk()
+      .api.http(HTTP_NAME, { method: 'GET', path: '/version', ...(env ? { env } : {}) })
       .then((r) => {
         if (r.status >= 400) throw toError(r);
         return r.json() as VersionInfo;
       })
       .catch((e) => {
-        versionPromise = undefined;
+        if (versions.get(key) === p) versions.delete(key);
         throw e;
       });
+    versions.set(key, p);
   }
-  return versionPromise;
+  return p;
 }
 
-/** Forget the negotiated version (after a reconnect, or when the engine was upgraded). */
+/** The negotiated version of the open environment. */
+export const engineVersionHere = (): Promise<VersionInfo> => engineVersion(currentEnv());
+
+/** Forget the negotiated version of the current environment (after a reconnect, or when the engine was upgraded). */
 export function resetEngine(): void {
-  versionPromise = undefined;
+  versions.delete(envKey(currentEnv()));
 }
 
-async function versioned(path: string): Promise<string> {
-  const v = await engineVersion();
+async function versioned(path: string, env: string | undefined): Promise<string> {
+  const v = await engineVersion(env);
   return `/v${v.ApiVersion}${path}`;
 }
 
@@ -70,8 +79,13 @@ function toError(r: HttpResponse): DockerError {
 }
 
 /** Raw request: returns the response even for 4xx/5xx. */
-export async function request(method: string, path: string, opts: RequestOptions = {}): Promise<HttpResponse> {
-  return getSdk().api.http(HTTP_NAME, { method, path: await versioned(path), ...opts });
+export function request(method: string, path: string, opts: RequestOptions = {}): Promise<HttpResponse> {
+  return requestIn(currentEnv(), method, path, opts);
+}
+
+/** Same for one environment that is not the open one (the Environments page asks every host). undefined = this server. */
+export async function requestIn(env: string | undefined, method: string, path: string, opts: RequestOptions = {}): Promise<HttpResponse> {
+  return getSdk().api.http(HTTP_NAME, { method, path: await versioned(path, env), ...opts, ...(env ? { env } : {}) });
 }
 
 /** Request that throws DockerError for non-2xx and returns the decoded JSON body (or undefined when empty). */
@@ -101,12 +115,13 @@ export interface StreamHandlers {
 export function stream(method: string, path: string, opts: RequestOptions, h: StreamHandlers): StreamHandle {
   let closed = false;
   let inner: { close(): void } | undefined;
-  versioned(path)
+  const env = currentEnv();
+  versioned(path, env)
     .then((p) => {
       if (closed) return;
       let failed = false;
       let errBody = '';
-      inner = getSdk().api.httpStream(HTTP_NAME, { method, path: p, ...opts }, {
+      inner = getSdk().api.httpStream(HTTP_NAME, { method, path: p, ...opts, ...(env ? { env } : {}) }, {
         onStart: (status, headers) => {
           if (status >= 400) failed = true;
           else h.onStart?.(status, headers);
@@ -144,16 +159,18 @@ export function stream(method: string, path: string, opts: RequestOptions, h: St
  * upload() when the Engine has answered (a non-2xx status is a normal result: use uploadOk() to turn it into an error).
  */
 export async function download(path: string, query: Query | undefined, filename: string): Promise<DownloadStarted> {
-  return getSdk().api.download(HTTP_NAME, { method: 'GET', path: await versioned(path), query }, filename);
+  const env = currentEnv();
+  return getSdk().api.download(HTTP_NAME, { method: 'GET', path: await versioned(path, env), query, ...(env ? { env } : {}) }, filename);
 }
 
 /** Starts an upload; the handle has cancel(). The path is versioned when the request is sent. */
 export function upload(method: 'POST' | 'PUT', path: string, opts: { query?: Query; headers?: Record<string, string> }, file: Blob, h?: UploadOptions | UploadOptions['onProgress']): UploadHandle {
   let inner: UploadHandle | undefined;
   let cancelled = false;
-  const p = versioned(path).then((v) => {
+  const env = currentEnv();
+  const p = versioned(path, env).then((v) => {
     if (cancelled) throw Object.assign(new Error('cancelled'), { code: 'cancelled' });
-    inner = getSdk().api.upload(HTTP_NAME, { method, path: v, query: opts.query, headers: opts.headers }, file, h);
+    inner = getSdk().api.upload(HTTP_NAME, { method, path: v, query: opts.query, headers: opts.headers, ...(env ? { env } : {}) }, file, h);
     return inner;
   }) as UploadHandle;
   p.cancel = () => {
@@ -172,6 +189,13 @@ export function engineMessage(r: { status: number; body?: string }): string {
     /* plain text */
   }
   return msg.slice(0, 300) || `Docker answered ${r.status}`;
+}
+
+/** JSON from one environment that is not the open one. */
+export async function jsonIn<T = unknown>(env: string | undefined, path: string, query?: Query): Promise<T> {
+  const r = await requestIn(env, 'GET', path, { query });
+  if (r.status >= 400) throw toError(r);
+  return r.json() as T;
 }
 
 export const docker = {
@@ -215,3 +239,9 @@ export function classify(e: unknown): ErrorInfo {
 
 /** The text to put in a toast for a failed action. */
 export const errorText = (e: unknown): string => classify(e).message;
+
+/** A switch of environment closes nothing by itself: streams are closed by their owners (views unmount). Versions of
+ *  environments that are no longer wanted are dropped here so a re-added host is negotiated again. */
+onEnvChange(() => {
+  if (versions.size > 8) versions.clear();
+});

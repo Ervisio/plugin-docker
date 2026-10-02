@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { stackAction, type Stack } from '../api/compose';
+import { canManageStacks, stackAction, type Stack } from '../api/compose';
+import { useEnv } from '../api/useEnv';
 import { healthOf, isProblem } from '../api/model';
 import { t, tn } from '../i18n';
 import { Badge, Button, Chip, EmptyState, IconButton, Skeleton, toast } from '../kit';
@@ -7,6 +8,7 @@ import { navigate, useSearch } from '../router';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
 import { SetupCard } from './stack/SetupCard';
+import { StackWhere } from './stack/StackWhere';
 import { useStacks } from './stack/useStacks';
 
 type Filter = 'all' | 'managed' | 'detected';
@@ -14,6 +16,8 @@ type Filter = 'all' | 'managed' | 'detected';
 /** Route { view: 'stacks' }: compose stacks as cards, managed ones in /opt/stacks first, detected ones marked. */
 export function StacksPage() {
   const { stacks, sources, loading, error, reload } = useStacks();
+  const { info } = useEnv();
+  const canNew = canManageStacks();
   const q = useSearch().trim().toLowerCase();
   const [filter, setFilter] = useState<Filter>('all');
   const [busy, setBusy] = useState<Set<string>>(new Set());
@@ -49,7 +53,7 @@ export function StacksPage() {
       icon="layers"
       title={t('stacks.title')}
       subtitle={stacks.length ? tn('stacks.sub', { n: stacks.length, running }) : sources ? t('stacks.sub.none') : ''}
-      actions={<Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
+      actions={<Button variant="primary" icon="plus" disabled={!canNew} title={canNew ? undefined : t('envs.stack.newOff', { env: info?.name ?? '' })} onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
     />
   );
 
@@ -59,6 +63,7 @@ export function StacksPage() {
   return (
     <>
       {header}
+      <StackWhere binds={false} />
       {sources && !sources.folder && <SetupCard onDone={() => void reload()} />}
       {stacks.length > 0 && (
         <div className="dk-chips" role="group" aria-label={t('stacks.title')}>
@@ -75,7 +80,7 @@ export function StacksPage() {
           text={t('stacks.empty.text')}
           action={
             <div className="dk-ph-act" style={{ margin: 0 }}>
-              <Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>
+              {canNew && <Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
               <Button icon="store" onClick={() => navigate({ view: 'templates' }, { root: true })}>{t('containers.empty.template')}</Button>
             </div>
           }

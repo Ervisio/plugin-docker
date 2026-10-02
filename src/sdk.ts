@@ -6,10 +6,12 @@
 export type {
   DownloadStarted,
   ExecResult,
+  AuditEntry,
   FileEntry,
   HttpRequest,
   HttpResponse,
   HttpStreamHandlers,
+  PluginEnv,
   PluginError,
   PluginSDK,
   PtyOptions,

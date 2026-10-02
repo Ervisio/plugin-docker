@@ -10,6 +10,7 @@
 import { parse } from 'yaml';
 import { getSdk, type PluginError } from '../sdk';
 import { DockerError, docker } from './engine';
+import { currentCaps, currentEnv } from './environments';
 import { envFileNames, originCandidates, originOf, parseTar, rewriteBinds, type BindChange, type BindWarning, type Origin } from './origin';
 import { COMPOSE_FILES, COMPOSE_PROJECT, COMPOSE_SERVICE, COMPOSE_WORKDIR, COMPOSE_ENV_FILE, type Container } from './types';
 
@@ -49,7 +50,16 @@ export interface Stack {
   total: number;
 }
 
-export const stackDir = (name: string): string => `${STACKS_DIR}/${name}`;
+/**
+ * Where managed stacks of the current environment live: /opt/stacks for this server, /opt/stacks/.envs/<env id> for a
+ * remote host reached through a tunnel (compose runs here, with -H). The two never mix.
+ */
+export const stacksRoot = (): string => `${STACKS_DIR}/${currentCaps().stackPrefix}`.replace(/\/$/, '');
+export const stackDir = (name: string): string => `${stacksRoot()}/${name}`;
+/** Arguments of the compose commands that work on a managed stack: its name and the folder prefix of the environment. */
+export const stackArgs = (name: string): string[] => [name, currentCaps().stackPrefix];
+/** False when the stack files of the current environment cannot be reached from here (a paired Ervisio server). */
+export const canManageStacks = (): boolean => currentCaps().stacks;
 export const isValidStackName = (name: string): boolean => STACK_NAME_RE.test(name);
 
 const isNotFound = (e: unknown): boolean => {
@@ -151,7 +161,7 @@ export interface ComposeLsEntry {
 
 async function composeLs(): Promise<ComposeLsEntry[]> {
   try {
-    const r = await getSdk().api.exec('compose-ls', []);
+    const r = await getSdk().api.exec('compose-ls', [], envOpts());
     if (r.exitCode !== 0) return [];
     const v = JSON.parse(r.stdout || '[]');
     return Array.isArray(v) ? v : [];
@@ -162,11 +172,14 @@ async function composeLs(): Promise<ComposeLsEntry[]> {
 
 async function managedNames(): Promise<{ exists: boolean; names: Set<string> }> {
   const out = new Set<string>();
+  // A paired server keeps its own stack files, out of reach: nothing is managed from here.
+  if (!canManageStacks()) return { exists: true, names: out };
   let entries;
   try {
-    entries = await fsx.list(STACKS_DIR);
+    entries = await fsx.list(stacksRoot());
   } catch (e) {
-    if (isNotFound(e)) return { exists: false, names: out };
+    // A remote host has no folder until its first stack is saved: that is not "needs setup".
+    if (isNotFound(e)) return { exists: stacksRoot() !== STACKS_DIR ? await stacksFolderExists() : false, names: out };
     throw e;
   }
   await Promise.all(
@@ -293,25 +306,32 @@ export async function writeStack(name: string, compose: string, env?: string): P
 
 /** Run a manifest command and stream its lines. Resolves with the exit code; rejects when it could not run at all. */
 export function runCompose(command: string, args: string[], onLine: LineHandler): Promise<number> {
+  const opts = envOpts();
   return new Promise((resolve, reject) => {
     getSdk().api.execStream(command, args, {
       onLine,
       onExit: resolve,
       onError: reject,
-    });
+    }, opts);
   });
 }
+
+/** The environment option for exec and execStream: commands with `{env}` in the manifest run against it. */
+const envOpts = (): { env?: string } => {
+  const env = currentEnv();
+  return env ? { env } : {};
+};
 
 /** `docker compose up -d` for a managed stack; with `pull` it pulls first. On success compose.yaml and .env are copied to .compose.deployed.yaml and .compose.deployed.env. */
 export async function deployStack(name: string, opts: { pull?: boolean }, onLine: LineHandler): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   if (opts.pull) {
     onLine('stdout', '$ docker compose pull');
-    const code = await runCompose('compose-pull', [name], onLine);
+    const code = await runCompose('compose-pull', stackArgs(name), onLine);
     if (code !== 0) return code;
   }
   onLine('stdout', '$ docker compose up -d --remove-orphans');
-  const code = await runCompose('compose-up', [name], onLine);
+  const code = await runCompose('compose-up', stackArgs(name), onLine);
   if (code === 0) {
     try {
       const text = await fsx.read(`${stackDir(name)}/${COMPOSE_FILE}`);
@@ -332,15 +352,15 @@ export function stackAction(name: string, action: StackAction, onLine: LineHandl
     if (action === 'pull') throw new Error('Pulling needs the compose file');
     return runCompose(`compose-p-${action}`, [name], onLine);
   }
-  return runCompose(`compose-${action}`, [name], onLine);
+  return runCompose(`compose-${action}`, stackArgs(name), onLine);
 }
 
 /** Validate a managed stack's files with `docker compose config`. Resolves with the exit code; output goes to onLine. */
-export const configStack = (name: string, onLine: LineHandler): Promise<number> => runCompose('compose-config', [name], onLine);
+export const configStack = (name: string, onLine: LineHandler): Promise<number> => runCompose('compose-config', stackArgs(name), onLine);
 
 /** The resolved configuration of a detected project (read only), from the first compose file of its labels. */
 export async function projectConfig(name: string, file: string): Promise<{ ok: boolean; text: string }> {
-  const r = await getSdk().api.exec('compose-config-project', [name, file]);
+  const r = await getSdk().api.exec('compose-config-project', [name, file], envOpts());
   return r.exitCode === 0 ? { ok: true, text: r.stdout } : { ok: false, text: (r.stderr || r.stdout).trim() };
 }
 
@@ -461,7 +481,7 @@ async function removeTree(path: string, depth = 0): Promise<void> {
  */
 export async function deleteStack(name: string, opts: { volumes?: boolean; folder?: boolean }, onLine: LineHandler): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
-  const code = await runCompose(opts.volumes ? 'compose-down-volumes' : 'compose-down', [name], onLine);
+  const code = await runCompose(opts.volumes ? 'compose-down-volumes' : 'compose-down', stackArgs(name), onLine);
   if (code !== 0) return code;
   if (opts.folder) {
     try {

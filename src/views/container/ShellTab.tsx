@@ -3,6 +3,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { t } from '../../i18n';
 import { Button, EmptyState, Icon, Select } from '../../kit';
+import { currentEnv } from '../../api/environments';
 import { getSdk } from '../../sdk';
 import { resolveColour, usePrefs } from './util';
 
@@ -81,6 +82,7 @@ export function ShellTab({ id, running, visible, onStart, mode = 'exec', tty = t
       session = getSdk().api.pty(attach ? 'attach' : 'shell', attach ? [id] : [id, shell], {
         cols: term.cols || 80,
         rows: term.rows || 24,
+        env: currentEnv(),
         onData: (chunk) => {
           setStatus((s) => (s === 'connecting' ? 'open' : s));
           term.write(chunk);

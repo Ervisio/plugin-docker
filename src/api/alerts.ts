@@ -17,6 +17,7 @@ import { docker } from './engine';
 import { subscribeEvents } from './events';
 import { containerName, formatBytes } from './format';
 import { cpuPercent, memoryUsed } from './stats';
+import { currentInfo, onEnvChange } from './environments';
 import { summarizeDf } from './system';
 import type { Container, DockerEvent, StatsRaw, SystemInfo } from './types';
 
@@ -84,7 +85,10 @@ function persist(): void {
     .catch(() => undefined);
 }
 
-function fire(rule: AlertRule, title: string, detail: string, c?: { name: string; id: string }): void {
+function fire(rule: AlertRule, title: string, detailIn: string, c?: { name: string; id: string }): void {
+  // The engine watches the environment that is open: say which host the alert is about.
+  const host = currentInfo();
+  const detail = host ? `${detailIn} ${t('alerts.fire.on', { env: host.name })}` : detailIn;
   const item: AlertHistoryItem = {
     id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
     at: Date.now(),
@@ -339,3 +343,10 @@ export function startAlerts(): () => void {
 export function useAlertEngine(): void {
   useEffect(() => startAlerts(), []);
 }
+
+// Another host: containers, counters and the host's memory belong to the previous one.
+onEnvChange(() => {
+  for (const m of [cooldown, lastKill, lastOom, dies, states]) m.clear();
+  hostMem = 0;
+  lastDisk = 0;
+});

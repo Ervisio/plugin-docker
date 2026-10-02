@@ -4,10 +4,12 @@
 export class JsonLines<T = any> {
   private buf = '';
   private dec = new TextDecoder();
-  constructor(
-    private onValue: (v: T) => void,
-    private onBad?: (line: string) => void,
-  ) {}
+  private onValue: (v: T) => void;
+  private onBad?: (line: string) => void;
+  constructor(onValue: (v: T) => void, onBad?: (line: string) => void) {
+    this.onValue = onValue;
+    this.onBad = onBad;
+  }
   push(chunk: Uint8Array): void {
     this.buf += this.dec.decode(chunk, { stream: true });
     let i: number;
@@ -43,10 +45,12 @@ export type LogStream = 'stdin' | 'stdout' | 'stderr';
  */
 export class LogDemuxer {
   private pending = new Uint8Array(0);
-  constructor(
-    private tty: boolean,
-    private onFrame: (stream: LogStream, data: Uint8Array) => void,
-  ) {}
+  private tty: boolean;
+  private onFrame: (stream: LogStream, data: Uint8Array) => void;
+  constructor(tty: boolean, onFrame: (stream: LogStream, data: Uint8Array) => void) {
+    this.tty = tty;
+    this.onFrame = onFrame;
+  }
   push(chunk: Uint8Array): void {
     if (this.tty) {
       this.onFrame('stdout', chunk);
@@ -85,11 +89,11 @@ export class LogLines {
   private demux: LogDemuxer;
   private dec: Record<string, TextDecoder> = {};
   private rest: Record<string, string> = {};
-  constructor(
-    tty: boolean,
-    private timestamps: boolean,
-    private onLine: (l: LogLine) => void,
-  ) {
+  private timestamps: boolean;
+  private onLine: (l: LogLine) => void;
+  constructor(tty: boolean, timestamps: boolean, onLine: (l: LogLine) => void) {
+    this.timestamps = timestamps;
+    this.onLine = onLine;
     this.demux = new LogDemuxer(tty, (s, data) => this.frame(s, data));
   }
   push(chunk: Uint8Array): void {

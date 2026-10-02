@@ -5,6 +5,7 @@
  */
 import { useEffect, useSyncExternalStore } from 'react';
 import { classify, type ErrorInfo } from './engine';
+import { envGeneration, onEnvChange } from './environments';
 import { subscribeEvents } from './events';
 import type { DockerEvent } from './types';
 
@@ -30,6 +31,8 @@ export interface ResourceOptions {
   intervalMs: number;
   /** Engine events that should trigger a refresh. Omit for none. */
   refreshOn?: (ev: DockerEvent) => boolean;
+  /** True for data that does not belong to one environment (the list of environments). Default: reset on a switch. */
+  global?: boolean;
 }
 
 export function createResource<T>(fetcher: () => Promise<T>, opts: ResourceOptions): Resource<T> {
@@ -48,11 +51,16 @@ export function createResource<T>(fetcher: () => Promise<T>, opts: ResourceOptio
   const refresh = (): Promise<void> => {
     if (inflight) return inflight;
     // A request that hangs (a busy daemon) must not block every later refresh: give up after 20 s.
-    const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Docker did not answer in time')), 20000));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Docker did not answer in time')), 20000); });
+    const gen = envGeneration();
+    // An answer that arrives after a switch of environment belongs to the previous host: drop it.
+    const stale = () => !opts.global && gen !== envGeneration();
     inflight = Promise.race([fetcher(), timeout])
-      .then((data) => set({ data, error: null, loading: false, updatedAt: Date.now() }))
-      .catch((e) => set({ data: state.data, error: classify(e), loading: false, updatedAt: state.updatedAt }))
+      .then((data) => { if (!stale()) set({ data, error: null, loading: false, updatedAt: Date.now() }); })
+      .catch((e) => { if (!stale()) set({ data: state.data, error: classify(e), loading: false, updatedAt: state.updatedAt }); })
       .finally(() => {
+        clearTimeout(timer);
         inflight = undefined;
       });
     return inflight;
@@ -89,6 +97,18 @@ export function createResource<T>(fetcher: () => Promise<T>, opts: ResourceOptio
       if (!subs.size) stop();
     };
   };
+
+  if (!opts.global) {
+    // Switching environment: forget what the previous host answered and, while used, fetch from the new one.
+    onEnvChange(() => {
+      inflight = undefined;
+      set({ data: undefined, error: null, loading: true, updatedAt: 0 });
+      if (subs.size) {
+        stop();
+        start();
+      }
+    });
+  }
 
   return {
     use: () => useSyncExternalStore(subscribe, () => state),
