@@ -40,15 +40,17 @@ test.beforeEach(() => {
 });
 
 test('capabilities depend on the kind', () => {
-  assert.deepEqual(capsOf(undefined, undefined), { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false });
+  assert.deepEqual(capsOf(undefined, undefined), { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false, pairedFiles: false });
   assert.equal(capsOf('ssh', 'env-aaaaaaaa').stackPrefix, '.envs/env-aaaaaaaa/');
   assert.equal(capsOf('tcp-tls', 'env-dddddddd').terminal, true);
   assert.equal(capsOf('portainer-agent', 'env-cccccccc').terminal, false);
   assert.equal(capsOf('portainer-agent', 'env-cccccccc').live, false);
   assert.equal(capsOf('ssh', 'env-aaaaaaaa').live, true);
   assert.equal(capsOf('portainer-agent', 'env-cccccccc').stacks, true);
-  // a paired server keeps its own stack files: nothing to edit here
-  assert.equal(capsOf('ervisio', 'env-bbbbbbbb').stacks, false);
+  // a paired server keeps its stack files on itself: edited there through files calls with { env }
+  assert.equal(capsOf('ervisio', 'env-bbbbbbbb').pairedFiles, true);
+  assert.equal(capsOf('ssh', 'env-aaaaaaaa').pairedFiles, false);
+  assert.equal(capsOf('ervisio', 'env-bbbbbbbb').stacks, true);
   assert.equal(capsOf('ervisio', 'env-bbbbbbbb').stackPrefix, '');
 });
 
@@ -142,7 +144,9 @@ test('stack folders and compose arguments follow the environment', () => {
   assert.deepEqual(stackArgs('web'), ['web', '.envs/env-aaaaaaaa/']);
   assert.equal(canManageStacks(), true);
   setEnv('env-bbbbbbbb');
-  assert.equal(canManageStacks(), false);
+  // a paired server: files are its own (files calls pass { env }), compose runs there with no folder prefix
+  assert.equal(canManageStacks(), true);
+  assert.equal(stacksRoot(), '/opt/stacks');
   assert.deepEqual(stackArgs('web'), ['web', '']);
 });
 

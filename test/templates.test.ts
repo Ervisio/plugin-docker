@@ -119,3 +119,11 @@ test('template deploy writes a valid .env', () => {
   const text = envText({ A: "it's $5", B: 'plain' }, [{ name: 'A', label: 'A', default: '', type: 'text' }, { name: 'B', label: 'B', default: '', type: 'text' }], [{ key: 'C', value: 'x y' }]);
   assert.equal(text, `A="it's \\$5"\nB=plain\nC='x y'\n`);
 });
+
+test('a variable of a custom template filled in the form lands in the stack .env and reads back the same', async () => {
+  const { parseEnv } = await import('../src/api/dotenv.ts');
+  const vars = [{ name: 'WHO', label: 'WHO', default: '', type: 'text' as const }, { name: 'PORT', label: 'PORT', default: '8080', type: 'text' as const }];
+  const values = { WHO: 'hello world #x "q" $5', PORT: '8080' };
+  const text = envText(values, vars, []);
+  assert.deepEqual(parseEnv(text), values);
+});

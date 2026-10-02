@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { docker, errorText } from '../api/engine';
 import { formatBytes } from '../api/format';
+import { beginRestore, forgetRestore, releaseRestore } from '../api/restoreJournal';
+import { currentEnv } from '../api/environments';
+import { watchDownload } from '../api/downloads';
+import { toastDone } from './resources/dlToast';
 import { containers, diskUsage, volumes } from '../api/resources';
 import { createHelper, emptyVolume, isHelper, lifetimeFor, removeContainer, restoreRoot, sendRestore, startBackup, sweepHelpers, VOLUME_ROOT, type Helper } from '../api/volumes';
 import type { Container, VolumeInfo } from '../api/types';
@@ -14,6 +18,7 @@ import { Hint } from './create/parts';
 import { jobsHere } from '../api/jobs';
 import { BackupSchedules } from './jobs/BackupSchedules';
 import { isAnonymousVolume, UsedBy } from './resources/bits';
+import { InterruptedRestore } from './volume/InterruptedRestore';
 import { useHelperImage } from './volume/useHelperImage';
 
 /**
@@ -52,6 +57,7 @@ export function VolumePage({ name, focus }: { name: string; focus?: 'backup' | '
   return (
     <>
       <PageHeader icon="database" hue="term" title={name} subtitle={subtitle} back />
+      <InterruptedRestore volume={name} />
       <section className="dk-cr-card" aria-label={t('volume.users')}>
         <h3>{t('volume.users')}</h3>
         <UsedBy list={users} max={12} />
@@ -125,20 +131,29 @@ function BackupCard({ name, size, users, ensureImage, track }: CardProps & { siz
     setNote('');
     try {
       const img = await ensureImage();
-      // Not removed here: the browser keeps reading the stream after download() returns. The helper ends by itself.
+      // The browser keeps reading the stream after download() returns, so the helper is removed when onDone says the
+      // transfer ended. If that never comes, it ends by itself (see lifetimeFor) and the button is freed by the timer.
       const h = await createHelper(img, name, 'ro', 'backup', size);
+      let file = '';
+      const w = watchDownload((r) => {
+        setBusy(false);
+        setNote('');
+        toastDone(file, r);
+        if (r) void h.remove().catch(() => undefined);
+      });
       try {
-        const r = await startBackup(h, name);
-        toast.ok(t('volume.backup.started', { name: r.filename }));
+        const r = await startBackup(h, name, { onDone: w.onDone });
+        file = r.filename;
         setNote(t('volume.backup.helper', { min: Math.ceil(lifetimeFor('backup', size) / 60) }));
+        w.armed();
       } catch (e) {
+        w.abort();
         await h.remove().catch(() => undefined);
         throw e;
       }
     } catch (e) {
-      toast.err(t('volume.backup.fail'), errorText(e));
-    } finally {
       setBusy(false);
+      toast.err(t('volume.backup.fail'), errorText(e));
     }
   };
 
@@ -185,12 +200,16 @@ function RestoreCard({ name, users, ensureImage, track }: CardProps & { users: C
     setPhase('prepare');
     const stopped: string[] = [];
     let helper: Helper | undefined;
+    let journal: string | undefined;
+    const runningIds = running.map((c) => c.Id);
     try {
       const root = await restoreRoot(file);
       if (!root) throw new Error(t('volume.restore.notTar'));
       const img = await ensureImage();
       if (stopThem) {
         setPhase('stop');
+        // Written before anything is stopped: if the page closes now, the next visit to Volumes offers to start them.
+        if (running.length) journal = await beginRestore(name, running.map((c) => ({ id: c.Id, name: containerName(c) })), currentEnv());
         for (const c of running) {
           await docker.post(`/containers/${c.Id}/stop`, { t: '30' });
           stopped.push(c.Id);
@@ -216,9 +235,17 @@ function RestoreCard({ name, users, ensureImage, track }: CardProps & { users: C
     } finally {
       xfer.current = null;
       await helper?.remove().catch(() => undefined);
-      if (stopped.length) {
+      if (stopped.length || journal) {
         setPhase('start');
-        for (const id of stopped) await docker.post(`/containers/${id}/start`).catch((e) => toast.err(t('volume.restore.startFail'), errorText(e)));
+        let failed = false;
+        // Every container of the record is started (starting one that is running is harmless).
+        const ids = journal ? runningIds : stopped;
+        for (const id of ids) await docker.post(`/containers/${id}/start`).catch((e) => { failed = true; toast.err(t('volume.restore.startFail'), errorText(e)); });
+        // Kept when a start failed, so Volumes still offers to try again.
+        if (journal) {
+          if (failed) releaseRestore(journal);
+          else await forgetRestore(journal).catch(() => undefined);
+        }
         void containers.refresh();
       }
       setPhase('');

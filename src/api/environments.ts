@@ -27,18 +27,21 @@ export interface EnvCaps {
   stackPrefix: string;
   /** The compose files are on another machine; bind mounts name paths on the remote host. */
   remoteFiles: boolean;
+  /** The stack files live on the paired Ervisio server: files calls pass `{ env }` (core 0.5.0) and compose runs there too. */
+  pairedFiles: boolean;
 }
 
 export function capsOf(kind: EnvKind | undefined, id: string | undefined): EnvCaps {
-  if (!id || !kind) return { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false };
+  if (!id || !kind) return { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false, pairedFiles: false };
   switch (kind) {
     case 'ervisio':
-      // The pairing relays calls and commands only; files stay on the other server, so its stacks cannot be edited here.
-      return { terminal: true, live: true, stacks: false, stackPrefix: '', remoteFiles: false };
+      // Calls, commands and (core 0.5.0) files are relayed: the stack files stay in the paired server's /opt/stacks and
+      // are read and written there with `{ env }`; compose runs there as well, so paths and bind mounts are its own.
+      return { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false, pairedFiles: true };
     case 'portainer-agent':
-      return { terminal: false, live: false, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
+      return { terminal: false, live: false, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true, pairedFiles: false };
     default:
-      return { terminal: true, live: true, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
+      return { terminal: true, live: true, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true, pairedFiles: false };
   }
 }
 

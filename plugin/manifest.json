@@ -1057,6 +1057,21 @@
         "admin": true,
         "adminUnlessGroup": "docker",
         "timeoutSec": 600,
+        "name": "volume-image",
+        "description": "Make sure the helper image of volume backups is on this machine, pulling it when it is not",
+        "argv": [
+          "sh",
+          "-c",
+          "i=\"$1\"; d=\"docker -H unix:///var/run/docker.sock\"; $d image inspect \"$i\" >/dev/null 2>&1 && exit 0; $d pull --quiet \"$i\" >/dev/null || { echo \"Could not download the helper image $i. Check that this server can reach Docker Hub, or load it with docker load, then run the backup again.\" >&2; exit 1; }",
+          "sh",
+          "busybox:1.37"
+        ],
+        "args": []
+      },
+      {
+        "admin": true,
+        "adminUnlessGroup": "docker",
+        "timeoutSec": 600,
         "name": "volume-backup",
         "description": "Write a tar of a volume to the backup folder and delete the oldest ones",
         "argv": [
@@ -1386,7 +1401,7 @@
       {
         "name": "git-poll-n",
         "description": "Update a Git stack when its branch or tag moved (quiet).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -1453,7 +1468,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1200
           },
           {
             "id": "up",
@@ -1465,7 +1481,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1800
           },
           {
             "id": "mark",
@@ -1485,7 +1502,7 @@
       {
         "name": "git-poll-s",
         "description": "Update a Git stack when its branch or tag moved (notify on success).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -1552,7 +1569,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1200
           },
           {
             "id": "up",
@@ -1564,7 +1582,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1800
           },
           {
             "id": "mark",
@@ -1597,7 +1616,7 @@
       {
         "name": "git-poll-f",
         "description": "Update a Git stack when its branch or tag moved (notify on failure).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -1677,6 +1696,7 @@
               "{param.name}",
               "{param.file}"
             ],
+            "timeoutSec": 1200,
             "continueOnError": true
           },
           {
@@ -1690,6 +1710,7 @@
               "{param.name}",
               "{param.file}"
             ],
+            "timeoutSec": 1800,
             "continueOnError": true
           },
           {
@@ -1762,7 +1783,7 @@
       {
         "name": "git-poll-b",
         "description": "Update a Git stack when its branch or tag moved (notify on success and failure).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -1842,6 +1863,7 @@
               "{param.name}",
               "{param.file}"
             ],
+            "timeoutSec": 1200,
             "continueOnError": true
           },
           {
@@ -1855,6 +1877,7 @@
               "{param.name}",
               "{param.file}"
             ],
+            "timeoutSec": 1800,
             "continueOnError": true
           },
           {
@@ -1940,7 +1963,7 @@
       {
         "name": "git-redeploy",
         "description": "Pull a Git stack and redeploy it (webhook).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -1984,7 +2007,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1200
           },
           {
             "id": "up",
@@ -1992,7 +2016,8 @@
             "args": [
               "{param.name}",
               "{param.file}"
-            ]
+            ],
+            "timeoutSec": 1800
           },
           {
             "id": "mark",
@@ -2012,7 +2037,7 @@
       {
         "name": "stack-redeploy",
         "description": "Pull the images of a stack and redeploy it (webhook).",
-        "timeoutSec": 1800,
+        "timeoutSec": 7200,
         "params": [
           {
             "name": "name",
@@ -2028,7 +2053,8 @@
             "args": [
               "{param.name}",
               ""
-            ]
+            ],
+            "timeoutSec": 1200
           },
           {
             "id": "up",
@@ -2036,7 +2062,8 @@
             "args": [
               "{param.name}",
               ""
-            ]
+            ],
+            "timeoutSec": 1800
           }
         ]
       },
@@ -2073,7 +2100,7 @@
       {
         "name": "volume-backup-n",
         "description": "Write a tar of a volume to the backup folder (quiet).",
-        "timeoutSec": 3600,
+        "timeoutSec": 21600,
         "params": [
           {
             "name": "volume",
@@ -2091,6 +2118,11 @@
         ],
         "steps": [
           {
+            "id": "image",
+            "command": "volume-image",
+            "args": []
+          },
+          {
             "id": "check",
             "command": "volume-check",
             "args": [
@@ -2103,14 +2135,15 @@
             "args": [
               "{param.volume}",
               "{param.keep}"
-            ]
+            ],
+            "timeoutSec": 21600
           }
         ]
       },
       {
         "name": "volume-backup-s",
         "description": "Write a tar of a volume to the backup folder (notify on success).",
-        "timeoutSec": 3600,
+        "timeoutSec": 21600,
         "params": [
           {
             "name": "volume",
@@ -2128,6 +2161,11 @@
         ],
         "steps": [
           {
+            "id": "image",
+            "command": "volume-image",
+            "args": []
+          },
+          {
             "id": "check",
             "command": "volume-check",
             "args": [
@@ -2140,7 +2178,8 @@
             "args": [
               "{param.volume}",
               "{param.keep}"
-            ]
+            ],
+            "timeoutSec": 21600
           },
           {
             "id": "said",
@@ -2159,7 +2198,7 @@
       {
         "name": "volume-backup-f",
         "description": "Write a tar of a volume to the backup folder (notify on failure).",
-        "timeoutSec": 3600,
+        "timeoutSec": 21600,
         "params": [
           {
             "name": "volume",
@@ -2177,7 +2216,17 @@
         ],
         "steps": [
           {
+            "id": "image",
+            "command": "volume-image",
+            "args": [],
+            "continueOnError": true
+          },
+          {
             "id": "check",
+            "if": {
+              "step": "image",
+              "when": "ok"
+            },
             "command": "volume-check",
             "args": [
               "{param.volume}"
@@ -2195,7 +2244,21 @@
               "{param.volume}",
               "{param.keep}"
             ],
+            "timeoutSec": 21600,
             "continueOnError": true
+          },
+          {
+            "id": "fail_image",
+            "if": {
+              "step": "image",
+              "when": "failed"
+            },
+            "notify": {
+              "title": "Backup of volume {param.volume} failed",
+              "body": "{step.image.stderr}",
+              "level": "error",
+              "link": "/p/docker"
+            }
           },
           {
             "id": "fail_check",
@@ -2228,7 +2291,7 @@
       {
         "name": "volume-backup-b",
         "description": "Write a tar of a volume to the backup folder (notify on success and failure).",
-        "timeoutSec": 3600,
+        "timeoutSec": 21600,
         "params": [
           {
             "name": "volume",
@@ -2246,7 +2309,17 @@
         ],
         "steps": [
           {
+            "id": "image",
+            "command": "volume-image",
+            "args": [],
+            "continueOnError": true
+          },
+          {
             "id": "check",
+            "if": {
+              "step": "image",
+              "when": "ok"
+            },
             "command": "volume-check",
             "args": [
               "{param.volume}"
@@ -2264,6 +2337,7 @@
               "{param.volume}",
               "{param.keep}"
             ],
+            "timeoutSec": 21600,
             "continueOnError": true
           },
           {
@@ -2275,6 +2349,19 @@
             "notify": {
               "title": "Backed up volume {param.volume}",
               "level": "success",
+              "link": "/p/docker"
+            }
+          },
+          {
+            "id": "fail_image",
+            "if": {
+              "step": "image",
+              "when": "failed"
+            },
+            "notify": {
+              "title": "Backup of volume {param.volume} failed",
+              "body": "{step.image.stderr}",
+              "level": "error",
               "link": "/p/docker"
             }
           },
@@ -2344,5 +2431,6 @@
       "wheel",
       "sudo"
     ]
-  }
+  },
+  "minCore": "0.5.0"
 }

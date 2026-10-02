@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { PREVIEW_LIMIT, SAVE_LIMIT, FsError, joinPath, listDir, makeDir, normalizePath, parentOf, readFile, removePath, saveFileOf, saveFolder, uploadFile, validName, type FsEntry, type Listing, type Transfer } from '../../api/files';
 import { classify } from '../../api/engine';
 import { formatBytes } from '../../api/format';
+import { watchDownload } from '../../api/downloads';
+import { toastDone } from '../resources/dlToast';
 import { t } from '../../i18n';
 import { Button, Dialog, EmptyState, Icon, IconButton, Input, Progress, Skeleton, toast } from '../../kit';
 import { DataTable, type DataColumn } from '../../ui/DataTable';
@@ -136,14 +138,29 @@ export function FilesTab({ id, running, root = '/', readOnly = false }: { id: st
       toast.info(t('container.files.notFile', { name: e.name }));
       return;
     }
-    setBusy(`d:${e.name}`);
+    const key = `d:${e.name}`;
+    setBusy(key);
+    // A tar is fetched by the browser after the call returns: the toast and the busy state wait for onDone.
+    let file = '';
+    const w = watchDownload((r) => {
+      setBusy((b) => (b === key ? '' : b));
+      toastDone(file || e.name, r);
+    });
     try {
-      const r = e.kind === 'dir' ? await saveFolder(id, full, e.name) : await saveFileOf(id, full, e.name, e.size, known);
-      toast.ok(r.kind === 'tar' ? t('container.files.downloadedTar', { name: r.filename }) : t('container.files.downloaded', { name: r.filename, size: formatBytes(r.size ?? 0) }), r.kind === 'tar' && e.kind === 'file' ? t('container.files.tarWhy', { size: formatBytes(SAVE_LIMIT, 0) }) : undefined);
-    } catch (err) {
-      toast.err(t('container.files.downloadFail', { name: e.name }), failText(err, full));
-    } finally {
+      const r = e.kind === 'dir' ? await saveFolder(id, full, e.name, { onDone: w.onDone }) : await saveFileOf(id, full, e.name, e.size, known, { onDone: w.onDone });
+      if (r.kind === 'tar') {
+        file = r.filename;
+        if (e.kind === 'file') toast.info(t('container.files.tarWhy', { size: formatBytes(SAVE_LIMIT, 0) }));
+        w.armed();
+        return;
+      }
+      w.abort();
       setBusy('');
+      toast.ok(t('container.files.downloaded', { name: r.filename, size: formatBytes(r.size ?? 0) }));
+    } catch (err) {
+      w.abort();
+      setBusy('');
+      toast.err(t('container.files.downloadFail', { name: e.name }), failText(err, full));
     }
   };
 
@@ -178,13 +195,19 @@ export function FilesTab({ id, running, root = '/', readOnly = false }: { id: st
 
   const downloadHere = async () => {
     setBusy('folder');
+    let file = '';
+    const w = watchDownload((r) => {
+      setBusy((b) => (b === 'folder' ? '' : b));
+      toastDone(file || path, r);
+    });
     try {
-      const r = await saveFolder(id, path, path === '/' ? 'root' : path.split('/').pop() ?? 'folder');
-      toast.ok(t('container.files.downloadedTar', { name: r.filename }));
+      const r = await saveFolder(id, path, path === '/' ? 'root' : path.split('/').pop() ?? 'folder', { onDone: w.onDone });
+      file = r.filename;
+      w.armed();
     } catch (err) {
-      toast.err(t('container.files.downloadFail', { name: path }), failText(err, path));
-    } finally {
+      w.abort();
       setBusy('');
+      toast.err(t('container.files.downloadFail', { name: path }), failText(err, path));
     }
   };
 

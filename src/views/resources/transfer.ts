@@ -6,14 +6,14 @@
  */
 import { docker, engineMessage } from '../../api/engine';
 import { JsonLines } from '../../api/streams';
-import type { DownloadStarted } from '../../sdk';
+import type { DownloadOptions, DownloadStarted } from '../../sdk';
 import { exportName, parseLoaded } from './transferNames';
 
 export { exportName, parseLoaded };
 
 /** Streams the images (references or ids) to disk as a tar. Resolves when the browser starts saving. */
-export function exportImages(names: string[]): Promise<DownloadStarted> {
-  return docker.download('/images/get', { names }, exportName(names));
+export function exportImages(names: string[], o?: DownloadOptions): Promise<DownloadStarted> {
+  return docker.download('/images/get', { names }, exportName(names), o);
 }
 
 export interface LoadState {

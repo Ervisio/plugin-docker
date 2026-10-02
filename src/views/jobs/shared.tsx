@@ -2,20 +2,11 @@ import { useEffect, useState } from 'react';
 import { approvalOf, jobsApi, runFailed, type JobInstance, type JobRun } from '../../api/jobs';
 import { useEnv } from '../../api/useEnv';
 import { relativeTime } from '../../api/format';
+import { appOrigin } from '../../api/appOrigin';
 import { t } from '../../i18n';
 import { Badge, Button, Icon, toast } from '../../kit';
 
-/** The address of the Ervisio app. A plugin frame has an opaque origin, so ask the browser for its parent. */
-export function appOrigin(): string {
-  try {
-    const anc = (location as unknown as { ancestorOrigins?: DOMStringList }).ancestorOrigins;
-    if (anc && anc.length && anc[0] && anc[0] !== 'null') return anc[0];
-  } catch { /* not Chromium */ }
-  try {
-    if (document.referrer) return new URL(document.referrer).origin;
-  } catch { /* none */ }
-  return location.origin && location.origin !== 'null' ? location.origin : '';
-}
+export { appOrigin };
 
 export const ago = (ms: number): string => relativeTime(ms / 1000);
 

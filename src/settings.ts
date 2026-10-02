@@ -103,6 +103,19 @@ export interface TemplateSourcesFile {
   sources: TemplateSource[];
 }
 
+/** A volume restore that stopped containers and has not started them again yet (see api/restoreJournal.ts). */
+export interface RestoreEntry {
+  id: string;
+  /** Environment the restore ran against, undefined for this server. */
+  env?: string;
+  volume: string;
+  containers: { id: string; name: string }[];
+  startedAt: number;
+}
+export interface RestoreJournalFile {
+  pending: RestoreEntry[];
+}
+
 export interface FileMap {
   settings: Settings;
   registries: RegistriesFile;
@@ -111,6 +124,7 @@ export interface FileMap {
   'alerts-sent': AlertsSentFile;
   autoupdate: AutoUpdateFile;
   'templates-sources': TemplateSourcesFile;
+  'restore-journal': RestoreJournalFile;
 }
 export type FileName = keyof FileMap;
 
@@ -134,6 +148,7 @@ export const DEFAULTS: { [K in FileName]: FileMap[K] } = {
     },
   },
   'templates-sources': { sources: [] },
+  'restore-journal': { pending: [] },
 };
 
 const path = (name: FileName) => `${CONFIG_DIR}/${name}.json`;

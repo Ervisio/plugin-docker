@@ -8,7 +8,7 @@
  * Non-2xx answers throw DockerError (status + the Engine's own message). Broker errors (needs_admin, unavailable,
  * forbidden) arrive as PluginError with `code`; classify() turns either kind into something to show.
  */
-import { getSdk, type DownloadStarted, type HttpRequest, type HttpResponse, type PluginError, type Query, type UploadHandle, type UploadOptions } from '../sdk';
+import { getSdk, type DownloadOptions, type DownloadStarted, type HttpRequest, type HttpResponse, type PluginError, type Query, type UploadHandle, type UploadOptions } from '../sdk';
 import { currentEnv, onEnvChange } from './environments';
 import type { VersionInfo } from './types';
 
@@ -158,9 +158,9 @@ export function stream(method: string, path: string, opts: RequestOptions, h: St
  * POST or PUT. These do not buffer the data in the frame. download() resolves when the browser starts saving;
  * upload() when the Engine has answered (a non-2xx status is a normal result: use uploadOk() to turn it into an error).
  */
-export async function download(path: string, query: Query | undefined, filename: string): Promise<DownloadStarted> {
+export async function download(path: string, query: Query | undefined, filename: string, o?: DownloadOptions): Promise<DownloadStarted> {
   const env = currentEnv();
-  return getSdk().api.download(HTTP_NAME, { method: 'GET', path: await versioned(path, env), query, ...(env ? { env } : {}) }, filename);
+  return getSdk().api.download(HTTP_NAME, { method: 'GET', path: await versioned(path, env), query, ...(env ? { env } : {}) }, filename, o);
 }
 
 /** Starts an upload; the handle has cancel(). The path is versioned when the request is sent. */

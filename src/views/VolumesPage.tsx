@@ -7,6 +7,7 @@ import { t, tn } from '../i18n';
 import { Badge, Button, DropdownMenu, type MenuItem, EmptyState, Icon, IconButton, Input, Segmented, Skeleton, toast, ConfirmDialog } from '../kit';
 import { removeHelpersOf, sweepHelpers } from '../api/volumes';
 import { navigate, useSearch } from '../router';
+import { InterruptedRestore } from './volume/InterruptedRestore';
 import { DiskBar } from '../ui/DiskBar';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
@@ -77,6 +78,7 @@ export function VolumesPage() {
   return (
     <>
       {header}
+      <InterruptedRestore />
       <DiskBar />
       {creating && <CreateVolume onClose={() => setCreating(false)} />}
       {jobsHere() && <BackupSchedules volumes={list.filter((v) => !isAnonymousVolume(v.Name)).map((v) => v.Name)} adding={scheduling !== null} prefill={scheduling || undefined} onDone={() => setScheduling(null)} />}

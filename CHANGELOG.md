@@ -2,7 +2,7 @@
 
 ## 2.2.0
 
-Draft, 2026-10-03. Needs Ervisio 0.5 or later.
+Draft, 2026-10-03. Needs Ervisio 0.5 or later (`minCore` is 0.5.0).
 
 ### Containers
 
@@ -34,6 +34,13 @@ Draft, 2026-10-03. Needs Ervisio 0.5 or later.
 * Scheduled backups: every hour to week, or at a time of day, keep the newest N, with a notification of your choice.
   Each backup is a tar file in `/var/backups/ervisio-docker/<volume>/`.
 * Backups and restores use a short-lived busybox helper container that is removed when the work ends.
+* A backup, an image export and a container file or folder download now say when they end: "Downloaded N MB", or why
+  they did not finish. The button stays busy until then, and the backup helper is removed at that moment.
+* If the page closes in the middle of a restore, the containers it stopped are no longer lost: Volumes shows
+  "A restore was interrupted" with Start them now, or Leave them stopped. The restore writes a small record in
+  `~/.config/ervisio/plugins/docker/restore-journal.json` before it stops anything and removes it when the containers run again.
+* A scheduled backup pulls the helper image in a step of its own when this server does not have it, and says so
+  clearly when it cannot. Each backup may run up to 6 hours.
 
 ### Stacks
 
@@ -46,7 +53,7 @@ Draft, 2026-10-03. Needs Ervisio 0.5 or later.
 * Automatic updates for Git stacks: pick an interval or a time of day and when to be told. A background job pulls and
   redeploys even when nobody has Ervisio open.
 * Redeploy webhooks on every stack and container: a web address that a registry or a CI job can call. Make a new
-  address or revoke it any time.
+  address or revoke it any time. The address is shown in full, built from the address of Ervisio.
 * Compose files in a sub-folder of a Git stack are handled when moving and deleting.
 
 ### Templates
@@ -62,6 +69,8 @@ Draft, 2026-10-03. Needs Ervisio 0.5 or later.
   transfers, build and stacks act on the host you opened.
 * An Environments page shows one card per host with its status, engine, running and stopped containers, stacks and
   CPU and memory use.
+* Stacks of another Ervisio server are created and edited here too: their files stay in that server's `/opt/stacks`
+  and are read and written there as your user (the Docker plugin must be installed there too).
 * Stacks of a TLS, SSH or Portainer host keep their files on this server in `/opt/stacks/.envs/<id>/`.
 * Git stacks, redeploy webhooks, automatic updates and scheduled backups run on this server only. On another host the
   plugin says so instead of showing them.

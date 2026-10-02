@@ -64,3 +64,4 @@
 .dk-pt-more ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
 .dk-pt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dk-pt-bar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; position: sticky; bottom: 0; padding: 10px 0; }
+.dk-vol-interrupted { margin: 0 0 14px; } .dk-vol-interrupted .dk-cr-row { margin-top: 8px; }

@@ -4,6 +4,8 @@
  * at import time.
  */
 export type {
+  DownloadOptions,
+  DownloadResult,
   DownloadStarted,
   ExecResult,
   AuditEntry,

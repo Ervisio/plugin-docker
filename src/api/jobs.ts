@@ -100,8 +100,6 @@ export function runFailed(r: JobRun): boolean {
   return r.status === 'failed' || r.status === 'timeout' || r.steps.some((s) => s.status === 'failed');
 }
 
-export const hookUrl = (path: string): string => `${location.origin}${path}`;
-
 export const toSchedule = (s: JobSchedule): JobSchedule => s;
 
 /** Deletes every instance of these jobs that belongs to a stack (or any other param). Errors are ignored: it is clean-up. */

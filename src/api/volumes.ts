@@ -21,6 +21,7 @@
  * with the tar as body; DELETE the helper. Stop and start the containers that use the volume around it if wanted.
  */
 import { docker, DockerError, engineMessage } from './engine';
+import type { DownloadOptions } from '../sdk';
 import { listTar } from './origin';
 import { execRun, FsError, type Transfer } from './files';
 import type { Container } from './types';
@@ -228,6 +229,6 @@ export function sendRestore(helper: Helper, root: string, file: Blob, onProgress
 }
 
 /** Starts the backup download from a read-only helper. Resolves when the browser starts saving. */
-export function startBackup(helper: Helper, volume: string) {
-  return docker.download(`/containers/${enc(helper.id)}/archive`, { path: VOLUME_ROOT }, backupName(volume));
+export function startBackup(helper: Helper, volume: string, o?: DownloadOptions) {
+  return docker.download(`/containers/${enc(helper.id)}/archive`, { path: VOLUME_ROOT }, backupName(volume), o);
 }

@@ -11,6 +11,14 @@ import { Icon } from '../../kit';
 export function StackWhere({ binds = true }: { binds?: boolean }) {
   const { info, caps } = useEnv();
   if (!info) return null;
+  if (caps.pairedFiles) {
+    return (
+      <div className="dk-ev-where" role="note">
+        <Icon name="info" />
+        <span>{t('envs.stack.pairedFiles', { env: info.name, dir: stacksRoot() })}{binds && <> {t('envs.stack.pairedBinds', { env: info.name })}</>}</span>
+      </div>
+    );
+  }
   if (!caps.stacks) {
     return (
       <div className="dk-ev-where dk-ev-where--warn" role="note">

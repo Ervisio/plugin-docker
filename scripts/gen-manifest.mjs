@@ -14,6 +14,12 @@ import { fileURLToPath } from 'node:url';
 const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'manifest.json');
 const manifest = JSON.parse(readFileSync(file, 'utf8'));
 
+/** Limits of the step timeoutSec field (core 0.5.0): a step may run up to the job's own timeout, at most 6 h. */
+const HOUR = 3600;
+const PULL_STEP = 20 * 60;
+const UP_STEP = 30 * 60;
+const BACKUP_STEP = 6 * HOUR;
+
 const SOCK = ['docker', '-H', 'unix:///var/run/docker.sock'];
 const STACKS = '/opt/stacks';
 export const BACKUP_DIR = '/var/backups/ervisio-docker';
@@ -108,9 +114,14 @@ commands.push(
 
 /* ---------- volume backups ---------- */
 
+/** Pulls the helper image only when this machine does not have it, and says what to do when it cannot. */
+const IMAGE_SCRIPT =
+  'i="$1"; d="docker -H unix:///var/run/docker.sock"; $d image inspect "$i" >/dev/null 2>&1 && exit 0; ' +
+  '$d pull --quiet "$i" >/dev/null || { echo "Could not download the helper image $i. Check that this server can reach Docker Hub, or load it with docker load, then run the backup again." >&2; exit 1; }';
 const BACKUP_SCRIPT =
   'set -e; f=/out/$(date -u +%Y-%m-%d_%H%M%S).tar; tar -cf "$f.part" -C /v .; mv "$f.part" "$f"; ls -1 /out/*.tar | sort -r | tail -n +$(($1+1)) | xargs -r rm -f --';
 commands.push(
+  cmd('volume-image', 'Make sure the helper image of volume backups is on this machine, pulling it when it is not', ['sh', '-c', IMAGE_SCRIPT, 'sh', HELPER_IMAGE], [], { ...priv, timeoutSec: 600 }),
   cmd(
     'volume-backup',
     'Write a tar of a volume to the backup folder and delete the oldest ones',
@@ -147,8 +158,8 @@ function gitPoll(mode) {
     { id: 'head', command: 'git-rev-head', args: ['{param.name}'], ...after('fetch'), ...keep },
     { id: 'new', command: 'git-rev-fetched', args: ['{param.name}'], ...after('fetch'), ...keep },
     { id: 'reset', if: { step: 'new', when: 'differs', other: 'head' }, command: 'git-reset', args: ['{param.name}'], ...keep },
-    { id: 'pull', if: { step: 'reset', when: 'ok' }, command: 'compose-pull-git', args: NF, ...keep },
-    { id: 'up', if: { step: 'pull', when: 'ok' }, command: 'compose-up-git', args: NF, ...keep },
+    { id: 'pull', if: { step: 'reset', when: 'ok' }, command: 'compose-pull-git', args: NF, timeoutSec: PULL_STEP, ...keep },
+    { id: 'up', if: { step: 'pull', when: 'ok' }, command: 'compose-up-git', args: NF, timeoutSec: UP_STEP, ...keep },
     { id: 'mark', if: { step: 'up', when: 'ok' }, command: 'stack-mark', args: NF, continueOnError: true },
   ];
   if (wantsOk(mode)) steps.push({ id: 'said', if: { step: 'up', when: 'ok' }, notify: { title: 'Updated {param.name}', body: 'Now at {step.new.stdout}', level: 'success', link: LINK } });
@@ -157,7 +168,7 @@ function gitPoll(mode) {
       steps.push({ id: `fail_${id}`, if: { step: id, when: 'failed' }, notify: { title: `Could not ${what} {param.name}`, body: `{step.${id}.stderr}`, level: 'error', link: LINK } });
     }
   }
-  return { name: `git-poll-${mode}`, description: `Update a Git stack when its branch or tag moved (${MODES[mode]}).`, timeoutSec: 1800, params: GIT_PARAMS, steps };
+  return { name: `git-poll-${mode}`, description: `Update a Git stack when its branch or tag moved (${MODES[mode]}).`, timeoutSec: 2 * HOUR, params: GIT_PARAMS, steps };
 }
 
 function backup(mode) {
@@ -165,18 +176,22 @@ function backup(mode) {
   const keep = f ? { continueOnError: true } : {};
   // Without this check docker would create an empty volume of that name and back up nothing.
   const steps = [
-    { id: 'check', command: 'volume-check', args: ['{param.volume}'], ...keep },
-    { id: 'run', ...(f ? { if: { step: 'check', when: 'ok' } } : {}), command: 'volume-backup', args: ['{param.volume}', '{param.keep}'], ...keep },
+    // The helper image is pulled here, in a step of its own, so a missing one says so instead of failing inside docker run.
+    { id: 'image', command: 'volume-image', args: [], ...keep },
+    { id: 'check', ...(f ? { if: { step: 'image', when: 'ok' } } : {}), command: 'volume-check', args: ['{param.volume}'], ...keep },
+    // A big volume takes hours: this step may run as long as the whole job.
+    { id: 'run', ...(f ? { if: { step: 'check', when: 'ok' } } : {}), command: 'volume-backup', args: ['{param.volume}', '{param.keep}'], timeoutSec: BACKUP_STEP, ...keep },
   ];
   if (wantsOk(mode)) steps.push({ id: 'said', if: { step: 'run', when: 'ok' }, notify: { title: 'Backed up volume {param.volume}', level: 'success', link: LINK } });
   if (f) {
+    steps.push({ id: 'fail_image', if: { step: 'image', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.image.stderr}', level: 'error', link: LINK } });
     steps.push({ id: 'fail_check', if: { step: 'check', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.check.stderr}', level: 'error', link: LINK } });
     steps.push({ id: 'fail', if: { step: 'run', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.run.stderr}', level: 'error', link: LINK } });
   }
   return {
     name: `volume-backup-${mode}`,
     description: `Write a tar of a volume to the backup folder (${MODES[mode]}).`,
-    timeoutSec: 3600,
+    timeoutSec: BACKUP_STEP,
     params: [param('volume', P_VOLUME, 'Volume name'), param('keep', P_KEEP, 'Backups to keep', '7')],
     steps,
   };
@@ -187,24 +202,24 @@ const jobs = [
   {
     name: 'git-redeploy',
     description: 'Pull a Git stack and redeploy it (webhook).',
-    timeoutSec: 1800,
+    timeoutSec: 2 * HOUR,
     params: GIT_PARAMS,
     steps: [
       { id: 'fetch', command: 'git-fetch', args: ['{param.name}', '{param.ref}'] },
       { id: 'reset', command: 'git-reset', args: ['{param.name}'] },
-      { id: 'pull', command: 'compose-pull-git', args: NF },
-      { id: 'up', command: 'compose-up-git', args: NF },
+      { id: 'pull', command: 'compose-pull-git', args: NF, timeoutSec: PULL_STEP },
+      { id: 'up', command: 'compose-up-git', args: NF, timeoutSec: UP_STEP },
       { id: 'mark', if: { step: 'up', when: 'ok' }, command: 'stack-mark', args: NF, continueOnError: true },
     ],
   },
   {
     name: 'stack-redeploy',
     description: 'Pull the images of a stack and redeploy it (webhook).',
-    timeoutSec: 1800,
+    timeoutSec: 2 * HOUR,
     params: [param('name', P_NAME, 'Stack name')],
     steps: [
-      { id: 'pull', command: 'compose-pull', args: ['{param.name}', ''] },
-      { id: 'up', command: 'compose-up', args: ['{param.name}', ''] },
+      { id: 'pull', command: 'compose-pull', args: ['{param.name}', ''], timeoutSec: PULL_STEP },
+      { id: 'up', command: 'compose-up', args: ['{param.name}', ''], timeoutSec: UP_STEP },
     ],
   },
   {
@@ -224,6 +239,7 @@ const ownCmds = new Set(commands.map((c) => c.name));
 caps.commands = [...caps.commands.filter((c) => !ownCmds.has(c.name)), ...commands];
 caps.jobs = jobs;
 caps.notify = true;
+manifest.minCore = '0.5.0';
 
 const text = JSON.stringify(manifest, null, 2) + '\n';
 if (process.argv.includes('--check')) {

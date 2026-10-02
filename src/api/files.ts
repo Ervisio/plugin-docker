@@ -12,7 +12,7 @@
 import { listTar, parseTar } from './origin';
 import { tarBlob } from './tar';
 import { docker, DockerError, engineMessage } from './engine';
-import { getSdk } from '../sdk';
+import { getSdk, type DownloadOptions } from '../sdk';
 
 /** Most entries shown for one folder. */
 export const LIST_LIMIT = 5000;
@@ -289,14 +289,14 @@ export type Saved = { kind: 'file' | 'tar'; filename: string; size?: number };
  * Saves a file of the container through the browser. Up to SAVE_LIMIT it is taken out of its tar here and saved under
  * its own name; a bigger one (any size) is streamed to disk as the tar the Engine sends, named "<name>.tar".
  */
-export async function saveFileOf(id: string, path: string, name: string, size: number, known?: Uint8Array): Promise<Saved> {
+export async function saveFileOf(id: string, path: string, name: string, size: number, known?: Uint8Array, o?: DownloadOptions): Promise<Saved> {
   try {
     if (known || size <= SAVE_LIMIT) {
       const data = known ?? (await readFile(id, path));
       const r = await getSdk().saveFile(name, data);
       return { kind: 'file', filename: r.filename, size: r.size };
     }
-    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name}.tar`);
+    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name}.tar`, o);
     return { kind: 'tar', filename: r.filename, size: r.size };
   } catch (e) {
     throw archiveError(e, 'Docker could not read the file');
@@ -304,9 +304,9 @@ export async function saveFileOf(id: string, path: string, name: string, size: n
 }
 
 /** Streams a folder (or any path) to disk as a tar. */
-export async function saveFolder(id: string, path: string, name: string): Promise<Saved> {
+export async function saveFolder(id: string, path: string, name: string, o?: DownloadOptions): Promise<Saved> {
   try {
-    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name || 'root'}.tar`);
+    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name || 'root'}.tar`, o);
     return { kind: 'tar', filename: r.filename, size: r.size };
   } catch (e) {
     throw archiveError(e, 'Docker could not read the folder');

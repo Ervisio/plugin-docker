@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { deleteStack, deployStack, isValidStackName, moveFromOrigin, moveToManaged, planMove, projectConfig, readStack, resolveOrigin, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, canManageStacks, stacksRoot, type OriginFiles, type Stack, type StackAction, type StackFiles } from '../api/compose';
+import { deleteStack, fsx, deployStack, isValidStackName, moveFromOrigin, moveToManaged, planMove, projectConfig, readStack, resolveOrigin, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, canManageStacks, stacksRoot, type OriginFiles, type Stack, type StackAction, type StackFiles } from '../api/compose';
 import { t } from '../i18n';
 import { Badge, Button, Card, Checkbox, DropdownMenu, EmptyState, Icon, Input, Skeleton, toast } from '../kit';
 import { back, navigate, type RouteProps } from '../router';
-import { getSdk } from '../sdk';
 import { ErrorState } from '../ui/ErrorState';
 import { StackWhere } from './stack/StackWhere';
 import { useEnv } from '../api/useEnv';
@@ -163,7 +162,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
 
   const loadMtime = useCallback(async () => {
     try {
-      const list = await getSdk().files.list(stackDir(name));
+      const list = await fsx.list(stackDir(name));
       const d = list.find((e) => e.name === DEPLOYED_FILE);
       if (alive.current) setDeployedAt(d?.mtime);
     } catch {

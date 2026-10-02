@@ -16,6 +16,8 @@ import { PullPanel } from './resources/PullPanel';
 import { PushPanel } from './resources/PushPanel';
 import { ImportPanel } from './resources/ImportPanel';
 import { exportImages } from './resources/transfer';
+import { toastDone } from './resources/dlToast';
+import { watchDownload } from '../api/downloads';
 import { TagsRow } from './resources/TagsRow';
 import { checkAll, forget, recheck, useUpdates } from './resources/updates';
 
@@ -108,13 +110,20 @@ export function ImagesPage() {
   const nameOf = (r: Row) => r.ref ?? r.img.Id;
   const doExport = async (names: string[]) => {
     setExporting(true);
-    try {
-      const r = await exportImages([...new Set(names)]);
-      toast.ok(t('res.export.started', { name: r.filename }));
-    } catch (e) {
-      toast.err(t('res.export.fail'), errorText(e));
-    } finally {
+    let name = '';
+    const w = watchDownload((r) => {
       setExporting(false);
+      toastDone(name, r);
+    });
+    try {
+      const r = await exportImages([...new Set(names)], { onDone: w.onDone });
+      name = r.filename;
+      // The download goes on in the browser: the toast and the busy state wait for onDone (or the fallback timer).
+      w.armed();
+    } catch (e) {
+      w.abort();
+      setExporting(false);
+      toast.err(t('res.export.fail'), errorText(e));
     }
   };
 

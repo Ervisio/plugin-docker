@@ -83,12 +83,21 @@ async function retry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Files of the stacks folder. For a paired Ervisio server (core 0.5.0) every call carries `{ env }` and runs on that
+ * server under its copy of the plugin's manifest; for this server and for tunnel environments (compose files are
+ * kept here) it is the plain call. Never use it for the plugin's own settings and templates: those stay local.
+ */
+const filesEnv = (): { env: string } | undefined => {
+  const env = currentEnv();
+  return env && currentCaps().pairedFiles ? { env } : undefined;
+};
 export const fsx = {
-  read: (p: string) => retry(() => getSdk().files.read(p)),
-  list: (p: string) => retry(() => getSdk().files.list(p)),
-  write: (p: string, d: string) => retry(() => getSdk().files.write(p, d)),
-  mkdir: (p: string) => retry(() => getSdk().files.mkdir(p)),
-  remove: (p: string) => retry(() => getSdk().files.remove(p)),
+  read: (p: string) => retry(() => getSdk().files.read(p, filesEnv())),
+  list: (p: string) => retry(() => getSdk().files.list(p, filesEnv())),
+  write: (p: string, d: string) => retry(() => getSdk().files.write(p, d, filesEnv())),
+  mkdir: (p: string) => retry(() => getSdk().files.mkdir(p, filesEnv())),
+  remove: (p: string) => retry(() => getSdk().files.remove(p, filesEnv())),
 };
 
 /* ---------- the folder ---------- */
@@ -107,6 +116,8 @@ export async function stacksFolderExists(): Promise<boolean> {
 /** Create /opt/stacks (root:docker 2775) with the admin command stacks-init when it is missing. */
 export async function ensureStacksFolder(): Promise<void> {
   if (await stacksFolderExists()) return;
+  // stacks-init runs here as root and cannot be pointed at a paired server: its folder must exist there already.
+  if (currentCaps().pairedFiles) throw new Error(`${STACKS_DIR} does not exist on the paired server. Open Ervisio there and create the first stack, or create the folder on that server.`);
   const r = await getSdk().api.exec('stacks-init', []);
   if (r.exitCode !== 0) throw new Error(r.stderr.trim() || `stacks-init exited with ${r.exitCode}`);
 }
@@ -179,15 +190,13 @@ async function composeLs(): Promise<ComposeLsEntry[]> {
 
 async function managedNames(): Promise<{ exists: boolean; names: Set<string>; git: Map<string, GitMeta> }> {
   const out = new Set<string>();
-  // A paired server keeps its own stack files, out of reach: nothing is managed from here.
-  if (!canManageStacks()) return { exists: true, names: out, git: new Map() };
   const git = new Map<string, GitMeta>();
   let entries;
   try {
     entries = await fsx.list(stacksRoot());
   } catch (e) {
     // A remote host has no folder until its first stack is saved: that is not "needs setup".
-    if (isNotFound(e)) return { exists: stacksRoot() !== STACKS_DIR ? await stacksFolderExists() : false, names: out, git };
+    if (isNotFound(e)) return { exists: currentCaps().pairedFiles || stacksRoot() !== STACKS_DIR ? await stacksFolderExists() : false, names: out, git };
     throw e;
   }
   await Promise.all(
@@ -196,7 +205,9 @@ async function managedNames(): Promise<{ exists: boolean; names: Set<string>; gi
       .map(async (e) => {
         try {
           const inner = await fsx.list(stackDir(e.name));
+          // Git stacks are updated by commands that run on this server only: on a paired server they stay "detected".
           if (inner.some((f) => f.name === GIT_META_FILE)) {
+            if (currentCaps().pairedFiles) return;
             // A stack cloned from Git keeps its compose file wherever the repository has it.
             const meta = parseGitMeta(await readOptional(`${stackDir(e.name)}/${GIT_META_FILE}`).catch(() => null));
             if (meta) {

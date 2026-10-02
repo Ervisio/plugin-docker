@@ -3,6 +3,15 @@ import type { AreaStrings } from '..';
 /** Image export and import, volume files, backup and restore. */
 const s: AreaStrings = {
   en: {
+    'volume.interrupted.title': 'A restore of {volume} was interrupted',
+    'volume.interrupted.text': 'The page closed before the restore ended, so these containers were stopped and not started again: {names}. The volume may hold only part of the backup.',
+    'volume.interrupted.start': 'Start them now',
+    'volume.interrupted.dismiss': 'Leave them stopped',
+    'volume.interrupted.started': 'Started the containers of {volume}',
+    'dl.done': 'Downloaded {name} ({size})',
+    'dl.fail': 'Download of {name} did not finish',
+    'dl.failWhy': '{why}. {size} reached the browser. Try again, and check the browser allows the download.',
+    'dl.failHint': 'The browser did not fetch the whole file. Try again.',
     'res.export.one': 'Export as .tar',
     'res.export.started': 'Saving {name}',
     'res.export.fail': 'Could not export the image',
@@ -77,6 +86,15 @@ const s: AreaStrings = {
     'volume.restore.confirmNoStop': 'The running containers keep running while the volume is emptied. They may fail.',
   },
   it: {
+    'volume.interrupted.title': 'Un ripristino di {volume} è stato interrotto',
+    'volume.interrupted.text': 'La pagina si è chiusa prima della fine del ripristino, quindi questi container sono stati fermati e non riavviati: {names}. Il volume potrebbe contenere solo una parte del backup.',
+    'volume.interrupted.start': 'Avviali ora',
+    'volume.interrupted.dismiss': 'Lasciali fermi',
+    'volume.interrupted.started': 'Container di {volume} avviati',
+    'dl.done': 'Scaricato {name} ({size})',
+    'dl.fail': 'Download di {name} non completato',
+    'dl.failWhy': '{why}. Al browser sono arrivati {size}. Riprova e controlla che il browser permetta il download.',
+    'dl.failHint': 'Il browser non ha scaricato tutto il file. Riprova.',
     'res.export.one': 'Esporta come .tar',
     'res.export.started': 'Salvataggio di {name}',
     'res.export.fail': 'Impossibile esportare l\'immagine',
