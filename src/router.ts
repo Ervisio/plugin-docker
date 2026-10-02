@@ -10,6 +10,7 @@
  * views/registry.tsx.
  */
 import { useSyncExternalStore } from 'react';
+import type { Template } from './api/templateModel.ts';
 
 /** Starting values for the new container form; plain JSON so it can sit in a route. */
 export interface CreatePrefill {
@@ -36,18 +37,20 @@ export type Route =
   | { view: 'create'; /** container id to edit (recreate with the same settings) */ from?: string; /** image to start from */ image?: string; /** values to start the form with (from a template) */ prefill?: CreatePrefill }
   | { view: 'templates' }
   | { view: 'template'; id: string }
+  | { view: 'template-edit'; /** custom template to edit (its id), none for a new one */ id?: string; /** a template to start from ("Save as template") */ seed?: Template }
   | { view: 'images' }
   | { view: 'volumes' }
   | { view: 'networks' }
   | { view: 'registries' }
   | { view: 'cleanup' }
   | { view: 'autoupdate' }
-  | { view: 'alerts' };
+  | { view: 'alerts' }
+  | { view: 'settings' };
 
 export type View = Route['view'];
 
 /** Sidebar entries: each is a top-level route. */
-export type NavId = 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts';
+export type NavId = 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'settings';
 
 /** Which sidebar entry is lit for a route. */
 export function sectionOf(r: Route): NavId {
@@ -58,6 +61,7 @@ export function sectionOf(r: Route): NavId {
     case 'stack':
       return 'stacks';
     case 'template':
+    case 'template-edit':
       return 'templates';
     default:
       return r.view;

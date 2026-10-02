@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { containers } from '../api/resources';
-import { composeOf, containerPrefill, envText, slug, substitute, useTemplates, type Template } from '../api/templates';
+import { composeOf, containerPrefill, CUSTOM_ID, envText, slug, substitute, useTemplates, type Template } from '../api/templates';
 import { deployStack, isValidStackName, readStack, writeStack } from '../api/compose';
+import { TEMPLATES_DIR } from '../api/customTemplates';
+import { maskedText } from '../api/dotenv';
 import { COMPOSE_PROJECT } from '../api/types';
 import { t } from '../i18n';
 import { Button, EmptyState, Icon, Skeleton, toast } from '../kit';
@@ -11,6 +13,7 @@ import { openUrl } from '../ui/openUrl';
 import { containerName } from '../api/format';
 import { runText, specFromPrefill } from './create/model';
 import { InstallFields, formProblems, initialForm, type FormState } from './templates/InstallForm';
+import { CustomMenu } from './templates/CustomActions';
 import { isInstalled, Tile } from './templates/shared';
 
 /** Compose settings that hand a container the host (shown as a warning before a third-party stack is deployed). */
@@ -38,6 +41,7 @@ function App({ tpl }: { tpl: Template }) {
   const [showErrors, setShowErrors] = useState(false);
   const [showSpec, setShowSpec] = useState(false);
   const [specText, setSpecText] = useState('');
+  const [envPrev, setEnvPrev] = useState('');
   const [specError, setSpecError] = useState('');
   const [busy, setBusy] = useState(false);
   // A stack from a third-party list is fetched from its repository (mutable): the user reviews it first, and
@@ -75,6 +79,7 @@ function App({ tpl }: { tpl: Template }) {
       } else {
         const text = await composeOf(tpl);
         setSpecText(text);
+        setEnvPrev(maskedText(envText(form.values, tpl.variables, tpl.fixedEnv), false).trim());
         if (remoteStack) setReviewed(text);
       }
       setShowSpec(true);
@@ -144,6 +149,7 @@ function App({ tpl }: { tpl: Template }) {
         <dd>{tpl.category}</dd>
         <dt>{t('templates.source')}</dt>
         <dd>{tpl.sourceName}</dd>
+        {tpl.custom && <><dt>{t('templates.custom.file')}</dt><dd className="dk-mono">{TEMPLATES_DIR}/{tpl.custom.file}.json</dd></>}
         {tpl.website && <><dt>{t('templates.website')}</dt><dd><a className="dk-tp-link" href={tpl.website} onClick={(e) => { e.preventDefault(); openUrl(tpl.website!); }}>{tpl.website.replace(/^https?:\/\//, '')}</a></dd></>}
       </dl>
     </section>
@@ -151,7 +157,7 @@ function App({ tpl }: { tpl: Template }) {
 
   return (
     <>
-      <PageHeader icon="store" title={tpl.name} subtitle={`${tpl.category}, ${tpl.sourceName}`} back actions={tpl.website ? <Button icon="link" onClick={() => openUrl(tpl.website!)}>{t('templates.website')}</Button> : undefined} />
+      <PageHeader icon="store" title={tpl.name} subtitle={`${tpl.category}, ${tpl.sourceName}`} back actions={tpl.source === CUSTOM_ID ? <><Button icon="edit" onClick={() => navigate({ view: 'template-edit', id: tpl.id })}>{t('templates.custom.edit')}</Button><CustomMenu tpl={tpl} onDeleted={() => navigate({ view: 'templates' }, { root: true })} /></> : tpl.website ? <Button icon="link" onClick={() => openUrl(tpl.website!)}>{t('templates.website')}</Button> : undefined} />
       <div className="dk-tp-app">
         <section className={`dk-tp-panel hue-${tpl.hue}`}>
           <div className="dk-tp-dh">
@@ -190,6 +196,7 @@ function App({ tpl }: { tpl: Template }) {
                 <div className="dk-cr-hint dk-cr-hint--warn" role="note"><Icon name="alert" size={14} /><span>{t(RISKY.test(reviewed) ? 'templates.review.risky' : 'templates.review')}</span></div>
               )}
               {showSpec && <pre className="dk-cr-run">{specText}</pre>}
+              {showSpec && tpl.type === 'stack' && envPrev && <><h4>{t('templates.envPreview')}</h4><pre className="dk-cr-run">{envPrev}</pre><p className="dk-muted">{t('templates.envPreviewNote')}</p></>}
               <div className="dk-tp-go">
                 <Button icon="code" onClick={() => void preview()}>{showSpec ? t('templates.hideSpec') : tpl.type === 'stack' ? t('templates.showCompose') : t('templates.showRun')}</Button>
                 <Button variant="primary" icon="download" onClick={() => void install()} disabled={tpl.type === 'stack' && !tpl.compose && !tpl.composeUrl}>{tpl.type === 'stack' ? t('templates.deploy') : t('templates.continue')}</Button>

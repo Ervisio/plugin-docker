@@ -3,6 +3,7 @@ import type { ContainerInspect, Container } from '../../api/types';
 import { publishedPorts } from '../../api/model';
 import { containerName } from '../../api/format';
 import type { CreatePrefill } from '../../router';
+import { isSecretName, parseRows } from '../../api/dotenv';
 
 let seq = 0;
 export const rid = (): string => `r${++seq}`;
@@ -263,7 +264,7 @@ export function createBody(spec: Spec, base?: Base): Record<string, any> {
 
 /* ---------- docker run text ---------- */
 
-export const isSecretKey = (k: string): boolean => /pass|secret|token|key|pwd|credential/i.test(k);
+export const isSecretKey = isSecretName;
 
 export function runText(spec: Spec, opts: { mask?: boolean } = {}): string {
   const mask = opts.mask !== false;
@@ -362,20 +363,8 @@ export function problems(spec: Spec, ctx: { names: Set<string>; used: Map<string
 
 /* ---------- .env text ---------- */
 
-export function parseDotenv(text: string): { key: string; value: string }[] {
-  const out: { key: string; value: string }[] = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const m = /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=\s*(.*)$/.exec(line);
-    if (!m) continue;
-    let v = m[2];
-    if ((v.startsWith('"') && v.endsWith('"') && v.length >= 2) || (v.startsWith("'") && v.endsWith("'") && v.length >= 2)) v = v.slice(1, -1);
-    else v = v.replace(/\s+#.*$/, '');
-    out.push({ key: m[1], value: v });
-  }
-  return out;
-}
+/** Variables of pasted .env text (the same parser the stack editor uses). */
+export const parseDotenv = (text: string): { key: string; value: string }[] => parseRows(text).rows.filter((r) => r.kind === 'var').map((r) => ({ key: r.key, value: r.value }));
 
 /** Path of an image reference for the Engine: each part encoded, the slashes kept (the rules forbid %2F). */
 export const imagePath = (ref: string): string => ref.split('/').map(encodeURIComponent).join('/');

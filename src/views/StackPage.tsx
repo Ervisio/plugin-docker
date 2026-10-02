@@ -11,6 +11,9 @@ import { Confirm } from './stack/Confirm';
 import { DeployOutput } from './stack/DeployCard';
 import { useDeploy, logged } from './stack/deployLog';
 import { DiffView } from './stack/DiffView';
+import { EnvEditor } from './stack/EnvEditor';
+import { maskedText } from '../api/dotenv';
+import { seedFromStack } from '../api/templateForm';
 import { diffLines, summarize } from './stack/diff';
 import { MovePreview } from './stack/MovePreview';
 import { ServicesCard } from './stack/ServicesCard';
@@ -121,6 +124,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
   const [loadErr, setLoadErr] = useState<Error | null>(null);
   const [compose, setCompose] = useState('');
   const [env, setEnv] = useState('');
+  const [envAdvanced, setEnvAdvanced] = useState(false);
   const [tab, setTab] = useState<Tab>('compose');
   const [pull, setPull] = useState(true);
   const [deployedAt, setDeployedAt] = useState<number>();
@@ -169,7 +173,9 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
   const envIssues = useMemo(() => validateEnv(env), [env]);
   const diff = useMemo(() => (files?.deployed != null ? diffLines(files.deployed, compose) : null), [files, compose]);
   const sum = useMemo(() => (diff ? summarize(diff) : null), [diff]);
-  const changedCount = sum ? sum.added + sum.removed : 0;
+  const envDiff = useMemo(() => (files?.deployedEnv != null ? diffLines(maskedText(files.deployedEnv), maskedText(env)) : null), [files, env]);
+  const envSum = useMemo(() => (envDiff ? summarize(envDiff) : null), [envDiff]);
+  const changedCount = (sum ? sum.added + sum.removed : 0) + (envSum ? envSum.added + envSum.removed : 0);
   const dirty = !!files && (compose !== files.compose || env !== files.env);
   const blocked = v.errors > 0 || envIssues.some((i) => i.level === 'error');
 
@@ -180,6 +186,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
 
   const jump = (tb: Tab, line: number) => {
     setTab(tb);
+    if (tb === 'env') setEnvAdvanced(true);
     setTimeout(() => jumpToLine(edRef.current, line), 30);
   };
 
@@ -251,7 +258,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
           <Button variant="primary" icon="play" loading={running && out?.title === t('stacks.deploy.title')} disabled={running || blocked || !files} title={blocked ? t('stacks.fixFirst') : undefined} onClick={deploy}>{t('stacks.deployChanges')}</Button>
           <DropdownMenu
             aria-label={t('stacks.more')}
-            items={[{ id: 'delete', label: t('stacks.delete.menu'), icon: 'trash', danger: true, onSelect: () => setConfirm('delete') }]}
+            items={[{ id: 'template', label: t('stacks.saveTemplate'), icon: 'store', onSelect: () => navigate({ view: 'template-edit', seed: seedFromStack(name, compose, env) }) }, { type: 'separator' }, { id: 'delete', label: t('stacks.delete.menu'), icon: 'trash', danger: true, onSelect: () => setConfirm('delete') }]}
             trigger={(p) => <Button variant="ghost" icon="more" iconOnly aria-label={t('stacks.more')} {...p} />}
           />
         </>
@@ -281,10 +288,23 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
           <Validity v={v} envIssues={envIssues} changed={changedCount} deployed={files.deployed != null} dirty={dirty} onJump={jump} />
           <div ref={edRef}>
             {tab === 'compose' && <CodeEditor value={compose} onChange={setCompose} lang="yaml" issues={v.issues} changed={sum?.changedLines} label="compose.yaml" />}
-            {tab === 'env' && <CodeEditor value={env} onChange={setEnv} lang="env" issues={envIssues} label=".env" />}
-            {tab === 'diff' && files.deployed != null && <DiffView oldText={files.deployed} newText={compose} />}
+            {tab === 'env' && <EnvEditor value={env} onChange={setEnv} compose={compose} advanced={envAdvanced} onAdvanced={setEnvAdvanced} issues={envIssues} />}
+            {tab === 'diff' && files.deployed != null && (
+              <div className="dk-sk-diffs">
+                <h4 className="dk-sk-dh">{t('stacks.diff.composeTitle')}</h4>
+                <DiffView oldText={files.deployed} newText={compose} />
+                {files.deployedEnv != null ? (
+                  <>
+                    <h4 className="dk-sk-dh">{t('stacks.diff.envTitle')}</h4>
+                    <DiffView oldText={maskedText(files.deployedEnv)} newText={maskedText(env)} lang="env" />
+                    <p className="dk-muted">{t('stacks.diff.envMasked')}</p>
+                  </>
+                ) : (
+                  <p className="dk-muted">{t('stacks.diff.envBaseline')}</p>
+                )}
+              </div>
+            )}
           </div>
-          {tab === 'env' && <p className="dk-muted">{t('stacks.envHint')}</p>}
         </Card>
         <div className="dk-sk-col">
           <Card title={t('stacks.services')}>
@@ -479,6 +499,7 @@ function NewStack() {
   const [name, setName] = useState('');
   const [compose, setCompose] = useState(STARTER);
   const [env, setEnv] = useState('');
+  const [envAdvanced, setEnvAdvanced] = useState(false);
   const [tab, setTab] = useState<Tab>('compose');
   const [pull, setPull] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -526,11 +547,10 @@ function NewStack() {
             <Tabs3 tab={tab} onTab={setTab} diffCount={0} canDiff={false} />
             <span className="dk-muted">{t('stacks.new.paste')}</span>
           </div>
-          <Validity v={v} envIssues={envIssues} changed={0} deployed={false} dirty={false} onJump={(tb, l) => { setTab(tb); setTimeout(() => jumpToLine(edRef.current, l), 30); }} />
+          <Validity v={v} envIssues={envIssues} changed={0} deployed={false} dirty={false} onJump={(tb, l) => { setTab(tb); if (tb === 'env') setEnvAdvanced(true); setTimeout(() => jumpToLine(edRef.current, l), 30); }} />
           <div ref={edRef}>
-            {tab === 'compose' ? <CodeEditor value={compose} onChange={setCompose} lang="yaml" issues={v.issues} label="compose.yaml" minLines={18} /> : <CodeEditor value={env} onChange={setEnv} lang="env" issues={envIssues} label=".env" minLines={18} />}
+            {tab === 'compose' ? <CodeEditor value={compose} onChange={setCompose} lang="yaml" issues={v.issues} label="compose.yaml" minLines={18} /> : <EnvEditor value={env} onChange={setEnv} compose={compose} advanced={envAdvanced} onAdvanced={setEnvAdvanced} issues={envIssues} minLines={18} />}
           </div>
-          {tab === 'env' && <p className="dk-muted">{t('stacks.envHint')}</p>}
         </Card>
         <div className="dk-sk-col">
           <Card title={t('stacks.new.create')}>

@@ -1,0 +1,9 @@
+/* Settings page: backup and restore. */
+.dk-bk { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; }
+@media (max-width: 1100px) { .dk-bk { grid-template-columns: minmax(0, 1fr); } }
+.dk-bk .dk-card { display: flex; flex-direction: column; gap: 12px; }
+.dk-bk-p { margin: 0; }
+.dk-bk-kv { margin: 0; }
+.dk-bk-plan { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dk-bk-plan li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: var(--surface); }
+.dk-bk-n { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }

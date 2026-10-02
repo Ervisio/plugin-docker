@@ -12,13 +12,13 @@ import { ViewHost } from '../views/registry';
 const GROUPS: { label: string; items: NavId[] }[] = [
   { label: 'nav.workloads', items: ['containers', 'stacks', 'templates'] },
   { label: 'nav.resources', items: ['images', 'volumes', 'networks', 'registries'] },
-  { label: 'nav.tools', items: ['cleanup', 'autoupdate', 'alerts'] },
+  { label: 'nav.tools', items: ['cleanup', 'autoupdate', 'alerts', 'settings'] },
 ];
 
 /** Views that list things the search box can filter. */
 const SEARCHABLE: NavId[] = ['containers', 'stacks', 'images'];
 /** Views that work without a running engine. */
-const OFFLINE_OK: NavId[] = ['registries'];
+const OFFLINE_OK: NavId[] = ['registries', 'settings'];
 
 /** The page: inner sidebar, search box, and the view for the current route. */
 export function App() {

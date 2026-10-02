@@ -5,7 +5,7 @@ import { initialValues, randomSecret, type Template, type TemplateVar } from '..
 import { usedHostPorts, validPort } from '../create/model';
 import { t } from '../../i18n';
 import { Hint } from '../create/parts';
-import { IconButton, Input, Switch } from '../../kit';
+import { IconButton, Input, Select, Switch } from '../../kit';
 
 export interface FormState {
   name: string;
@@ -41,6 +41,14 @@ export function InstallFields({ tpl, form, setForm, errors, showErrors }: { tpl:
         <div key={v.name} className="dk-tp-bool">
           <Switch checked={val === 'true'} onChange={(on) => set(v.name, on ? 'true' : 'false')} label={v.label} />
           {v.hint && <span className="dk-muted">{v.hint}</span>}
+        </div>
+      );
+    }
+    if (v.options?.length) {
+      const opts = v.options.some((o) => o.value === val) ? v.options : [...v.options, { label: val, value: val }];
+      return (
+        <div key={v.name} className="dk-tp-fld">
+          <Select label={v.label} value={val} onChange={(x) => set(v.name, x)} options={opts.map((o) => ({ value: o.value, label: o.label }))} hint={v.hint} />
         </div>
       );
     }

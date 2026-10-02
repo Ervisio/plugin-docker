@@ -4,6 +4,7 @@
  * ports format, unknown depends_on and volume references.
  */
 import { isMap, isScalar, isSeq, LineCounter, parseDocument, type Node, type Pair } from 'yaml';
+import { parseEnv, validateEnv } from '../../api/dotenv';
 
 export interface Issue {
   /** 1-based line. */
@@ -168,24 +169,4 @@ export function validateCompose(text: string, envText = ''): Validation {
   return done();
 }
 
-export function parseEnv(text: string): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const l of text.split('\n')) {
-    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=(.*)$/.exec(l);
-    if (m) out[m[1]] = m[2];
-  }
-  return out;
-}
-
-export function validateEnv(text: string): Issue[] {
-  const out: Issue[] = [];
-  const seen = new Map<string, number>();
-  text.split('\n').forEach((l, i) => {
-    if (!l.trim() || /^\s*#/.test(l)) return;
-    const m = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_.-]*)\s*=/.exec(l);
-    if (!m) out.push({ line: i + 1, level: 'error', key: 'stacks.v.envLine' });
-    else if (seen.has(m[1])) out.push({ line: i + 1, level: 'warn', key: 'stacks.v.envDup', vars: { name: m[1], line: seen.get(m[1])! } });
-    else seen.set(m[1], i + 1);
-  });
-  return out;
-}
+export { parseEnv, validateEnv };

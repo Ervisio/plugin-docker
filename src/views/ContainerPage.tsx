@@ -19,6 +19,7 @@ import { TypeConfirm } from './container/TypeConfirm';
 import { useInspect } from './container/useInspect';
 import { nameOf, useNow } from './container/util';
 import { classify } from '../api/engine';
+import { seedFromContainer } from './templates/seed';
 
 type Tab = NonNullable<RouteProps<'container'>['tab']>;
 const TABS: { id: Tab; icon: string }[] = [
@@ -130,6 +131,7 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
             <Button variant="primary" icon="play" loading={busy === 'start'} disabled={!!busy} onClick={() => act('start')}>{t('common.start')}</Button>
           )}
           <Button icon="edit" onClick={() => navigate({ view: 'create', from: c.Id })}>{t('container.edit')}</Button>
+          <IconButton icon="store" label={t('container.saveTemplate')} onClick={() => void seedFromContainer(c).then((seed) => navigate({ view: 'template-edit', seed }), (e) => toast.err(t('container.saveTemplateFail'), (e as Error).message))} />
           <IconButton icon="trash" variant="danger" label={t('common.remove')} onClick={() => setRemoving(true)} />
         </div>
       </header>
