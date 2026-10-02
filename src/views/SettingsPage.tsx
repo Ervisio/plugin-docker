@@ -2,15 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildBackup, hasChanges, parseBackup, planImport, BackupError, SECTIONS, type Backup, type Current, type SectionId } from '../api/backupModel';
 import { customTemplates, reloadCustom, saveCustomTemplate, TEMPLATES_DIR } from '../api/customTemplates';
 import { errorText } from '../api/engine';
-import { saveExport, EXPORT_DIR } from '../api/exports';
 import { parseCustomFile, templateFileText } from '../api/templateModel';
 import { t } from '../i18n';
+import { getSdk } from '../sdk';
 import { Badge, Button, Card, Checkbox, Icon, Textarea, toast } from '../kit';
 import { ensureFile, setFile, useFile } from '../settings';
 import { FilePicker } from '../ui/FilePicker';
 import { PageHeader } from '../ui/PageHeader';
 import { Hint } from './create/parts';
-import { JsonDialog } from './templates/JsonDialog';
 
 /** Reads everything a backup holds, from the plugin's files and the shared templates folder. */
 async function readCurrent(): Promise<Current> {
@@ -49,7 +48,6 @@ function ExportCard() {
   const [custom, setCustom] = useState<number | null>(null);
   const [leaveOut, setLeaveOut] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [out, setOut] = useState<{ text: string; file: string; path: string } | null>(null);
   useEffect(() => {
     void reloadCustom().then(() => setCustom(customTemplates().length), () => setCustom(0));
   }, []);
@@ -61,8 +59,8 @@ function ExportCard() {
       const cur = await readCurrent();
       const text = JSON.stringify(buildBackup(cur, { passwords: !leaveOut }), null, 2) + '\n';
       const file = `ervisio-docker-settings-${stamp()}.json`;
-      const path = await saveExport(file, text);
-      setOut({ text, file, path });
+      const r = await getSdk().saveFile(file, text, 'application/json');
+      toast.ok(t('backup.export.done'), r.filename);
     } catch (e) {
       toast.err(t('backup.exportFail'), errorText(e));
     } finally {
@@ -95,12 +93,6 @@ function ExportCard() {
       <div className="dk-cr-row">
         <Button variant="primary" icon="download" loading={busy} disabled={busy} onClick={() => void run()}>{t('backup.export.button')}</Button>
       </div>
-      <p className="dk-muted dk-bk-p">{t('backup.export.where', { dir: EXPORT_DIR })}</p>
-      {out && (
-        <JsonDialog open onClose={() => setOut(null)} title={t('backup.export.done')} text={out.text} file={out.file} savedPath={out.path}>
-          {!leaveOut && withPasswords > 0 && <Hint tone="warn" icon="alert">{t('backup.export.warn')}</Hint>}
-        </JsonDialog>
-      )}
     </Card>
   );
 }

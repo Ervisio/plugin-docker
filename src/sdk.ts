@@ -4,6 +4,7 @@
  * at import time.
  */
 export type {
+  DownloadStarted,
   ExecResult,
   FileEntry,
   HttpRequest,
@@ -14,5 +15,7 @@ export type {
   PtyOptions,
   Query,
   Theme,
+  UploadHandle,
+  UploadOptions,
 } from '@ervisio/plugin-sdk';
 export { getSdk, setSdk } from '@ervisio/plugin-sdk';

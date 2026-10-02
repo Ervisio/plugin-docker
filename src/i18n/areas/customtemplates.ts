@@ -104,9 +104,8 @@ const s: AreaStrings = {
     'container.saveTemplateFail': 'Could not read the container',
 
     'export.copied': 'Copied',
-    'export.save': 'Save to a file',
+    'export.save': 'Download',
     'export.saved': 'Saved',
-    'export.savedTo': 'Saved to {path}',
     'export.saveFail': 'Could not save the file',
   },
   it: {
@@ -212,9 +211,8 @@ const s: AreaStrings = {
     'container.saveTemplateFail': 'Non è stato possibile leggere il container',
 
     'export.copied': 'Copiato',
-    'export.save': 'Salva in un file',
+    'export.save': 'Scarica',
     'export.saved': 'Salvato',
-    'export.savedTo': 'Salvato in {path}',
     'export.saveFail': 'Non è stato possibile salvare il file',
   },
 };

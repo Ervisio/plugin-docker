@@ -1,10 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { docker, errorText } from '../../api/engine';
+import { formatBytes } from '../../api/format';
 import { LogLines, type LogLine } from '../../api/streams';
 import { t, tn } from '../../i18n';
 import { Button, Icon, IconButton, Input, Segmented, Select, toast } from '../../kit';
 import { getSdk } from '../../sdk';
-import { CONFIG_DIR } from '../../settings';
 import { copyText, escapeRe, usePrefs } from './util';
 
 const BUFFER = 20000;
@@ -138,13 +138,11 @@ export function LogsTab({ id, name, tty, running }: { id: string; name: string; 
     if (await copyText(asText())) toast.ok(tn('container.logs.copied', { n: matched.length }));
     else toast.err(t('container.copyFail'));
   };
-  /** The plugin frame cannot start a browser download, so the log is written to a file in the plugin's folder. */
   const save = async () => {
-    const file = `${CONFIG_DIR}/logs/${name.replace(/[^a-zA-Z0-9_.-]/g, '_')}.log`;
+    const file = `${name.replace(/[^a-zA-Z0-9_.-]/g, '_')}.log`;
     try {
-      await getSdk().files.mkdir(`${CONFIG_DIR}/logs`).catch(() => undefined);
-      await getSdk().files.write(file, asText());
-      toast.ok(t('container.logs.saved'), file);
+      const r = await getSdk().saveFile(file, asText(), 'text/plain');
+      toast.ok(t('container.logs.saved'), `${r.filename} · ${formatBytes(r.size)}`);
     } catch (e) {
       toast.err(t('container.logs.saveFail'), errorText(e));
     }
