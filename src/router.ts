@@ -37,6 +37,7 @@ export type Route =
   | { view: 'templates' }
   | { view: 'template'; id: string }
   | { view: 'images' }
+  | { view: 'build' }
   | { view: 'volumes' }
   | { view: 'networks' }
   | { view: 'registries' }
@@ -55,6 +56,8 @@ export function sectionOf(r: Route): NavId {
     case 'container':
     case 'create':
       return 'containers';
+    case 'build':
+      return 'images';
     case 'stack':
       return 'stacks';
     case 'template':

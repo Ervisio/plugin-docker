@@ -418,7 +418,8 @@
         "adminUnlessGroup": "docker",
         "headers": [
           "Content-Type",
-          "X-Registry-Auth"
+          "X-Registry-Auth",
+          "X-Registry-Config"
         ],
         "maxBody": 8388608,
         "name": "docker",
@@ -520,6 +521,18 @@
               "POST"
             ],
             "path": "/v1\\.[0-9]+/images/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*(?:/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*){0,9}/tag"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/v1\\.[0-9]+/images/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*(?:/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*){0,9}/push"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/v1\\.[0-9]+/build"
           },
           {
             "methods": [

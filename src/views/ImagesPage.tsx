@@ -13,6 +13,8 @@ import { groupContainers, matchesText, UsedBy } from './resources/bits';
 import { realTags, refPath } from './resources/imageRef';
 import { LayersRow } from './resources/LayersRow';
 import { PullPanel } from './resources/PullPanel';
+import { PushPanel } from './resources/PushPanel';
+import { TagsRow } from './resources/TagsRow';
 import { checkAll, forget, recheck, useUpdates } from './resources/updates';
 
 type Filter = 'all' | 'used' | 'unused' | 'updates';
@@ -50,6 +52,7 @@ export function ImagesPage() {
   const [filter, setFilter] = useState<Filter>('all');
   const [q, setQ] = useState('');
   const [pull, setPull] = useState<{ ref: string; auto: boolean; n: number } | null>(null);
+  const [push, setPush] = useState<{ id: string; tags: string[]; n: number } | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<Row | null>(null);
   const [force, setForce] = useState(false);
@@ -85,6 +88,7 @@ export function ImagesPage() {
         <>
           <Button icon="refresh" loading={upd.checking > 0} onClick={() => void checkAll(data ?? [], true)}>{t('res.images.check')}</Button>
           <Button icon="broom" onClick={() => navigate({ view: 'cleanup' })}>{t('disk.cleanup')}</Button>
+          <Button icon="code" onClick={() => navigate({ view: 'build' })}>{t('build.open')}</Button>
           <Button variant="primary" icon="download" onClick={() => setPull({ ref: '', auto: false, n: Date.now() })}>{t('res.images.pull')}</Button>
         </>
       }
@@ -133,6 +137,7 @@ export function ImagesPage() {
           }}
         />
       )}
+      {push && <PushPanel key={push.n} image={push} onClose={() => setPush(null)} onDone={() => { void images.refresh(); }} />}
       <section className="dk-card">
         <div className="dk-bar1">
           <Input fieldClassName="dk-grow" icon="search" placeholder={t('res.images.filter')} aria-label={t('res.images.filter')} value={q} onChange={(e) => setQ(e.target.value)} />
@@ -184,6 +189,7 @@ export function ImagesPage() {
                           <div className="dk-act">
                             {r.ref && <IconButton icon="download" size="sm" variant="ghost" label={t('res.images.pullAgain')} onClick={() => setPull({ ref: r.ref!, auto: true, n: Date.now() })} />}
                             {r.ref && <IconButton icon="play" size="sm" variant="ghost" label={t('res.images.run')} onClick={() => navigate({ view: 'create', image: r.ref })} />}
+                            <IconButton icon="upload" size="sm" variant="ghost" label={t('res.images.push')} onClick={() => setPush({ id: r.img.Id, tags: r.ref ? [r.ref, ...realTags(r.img.RepoTags).filter((x) => x !== r.ref)] : realTags(r.img.RepoTags), n: Date.now() })} />
                             <IconButton icon="layers" size="sm" variant="ghost" label={t('res.images.layers')} onClick={() => setOpen(isOpen ? null : r.key)} />
                             <IconButton icon="trash" size="sm" variant="ghost" label={t('common.remove')} onClick={() => { setRemoving(r); setForce(false); }} />
                           </div>
@@ -201,6 +207,7 @@ export function ImagesPage() {
                                 )}
                                 <IconButton icon="close" size="sm" variant="ghost" label={t('common.close')} onClick={() => setOpen(null)} />
                               </div>
+                              <TagsRow id={r.img.Id} tags={realTags(r.img.RepoTags)} />
                               <LayersRow id={r.img.Id} />
                             </div>
                           </td>

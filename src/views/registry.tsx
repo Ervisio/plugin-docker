@@ -1,6 +1,7 @@
 import type { Route } from '../router';
 import { AlertsPage } from './AlertsPage';
 import { AutoUpdatePage } from './AutoUpdatePage';
+import { BuildPage } from './BuildPage';
 import { CleanupPage } from './CleanupPage';
 import { ContainerPage } from './ContainerPage';
 import { ContainersPage } from './ContainersPage';
@@ -33,6 +34,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <TemplatePage id={route.id} />;
     case 'images':
       return <ImagesPage />;
+    case 'build':
+      return <BuildPage />;
     case 'volumes':
       return <VolumesPage />;
     case 'networks':

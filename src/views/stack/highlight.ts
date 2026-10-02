@@ -59,8 +59,30 @@ export function highlightEnvLine(line: string): string {
   return esc(line);
 }
 
-export type Lang = 'yaml' | 'env' | 'plain';
+const DOCKER_WORDS = /^(FROM|RUN|CMD|LABEL|MAINTAINER|EXPOSE|ENV|ADD|COPY|ENTRYPOINT|VOLUME|USER|WORKDIR|ARG|ONBUILD|STOPSIGNAL|HEALTHCHECK|SHELL)(?=\s|$)/i;
+
+/** Dockerfile: instruction words, --flags, AS, variables, strings, comments. One line at a time (no state). */
+export function highlightDockerLine(line: string): string {
+  if (/^\s*#/.test(line)) return span('c', line);
+  const m = /^(\s*)(\S+)(.*)$/.exec(line);
+  if (!m) return esc(line);
+  const head = DOCKER_WORDS.test(m[2] + ' ') ? span('k', m[2]) : span('s', m[2]);
+  const rest = m[3]
+    .split(/(\s--[a-z-]+(?:=\S*)?|\$\{[^}]*\}?|\$[A-Za-z_][A-Za-z0-9_]*|"(?:[^"\\]|\\.)*"?|'[^']*'?|\s\\$|\bAS\b)/)
+    .map((p, i) => {
+      if (i % 2 === 0) return esc(p);
+      if (/^\s--/.test(p)) return esc(p.match(/^\s/)![0]) + span('n', p.trimStart());
+      if (p[0] === '$') return span('v', p);
+      if (p === 'AS') return span('k', p);
+      if (/^\s\\$/.test(p)) return esc(p);
+      return span('s', p);
+    })
+    .join('');
+  return esc(m[1]) + head + rest;
+}
+
+export type Lang = 'yaml' | 'env' | 'dockerfile' | 'plain';
 
 export function highlightLine(line: string, lang: Lang): string {
-  return lang === 'yaml' ? highlightYamlLine(line) : lang === 'env' ? highlightEnvLine(line) : esc(line);
+  return lang === 'yaml' ? highlightYamlLine(line) : lang === 'env' ? highlightEnvLine(line) : lang === 'dockerfile' ? highlightDockerLine(line) : esc(line);
 }

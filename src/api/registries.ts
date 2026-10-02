@@ -70,3 +70,21 @@ export async function registryAuthFor(image: string): Promise<string | undefined
 export async function testRegistry(r: Pick<Registry, 'server' | 'username' | 'password'>): Promise<void> {
   await docker.post('/auth', undefined, { username: r.username, password: r.password, serveraddress: serverAddress(r.server) });
 }
+
+/**
+ * The X-Registry-Config value of a build: every stored login keyed by registry address (base64url JSON). Docker uses
+ * the entry that matches the registry of each base image, so private FROM lines work. Undefined without logins.
+ */
+export async function registryConfigHeader(): Promise<string | undefined> {
+  const list = (await listRegistries()).filter((r) => r.username);
+  if (!list.length) return undefined;
+  const cfg: Record<string, { username: string; password: string; serveraddress: string }> = {};
+  for (const r of list) {
+    const addr = serverAddress(r.server);
+    cfg[addr] = { username: r.username, password: r.password, serveraddress: addr };
+  }
+  return base64url(JSON.stringify(cfg));
+}
+
+/** X-Registry-Auth for a push to a registry without a stored login: Docker wants the header even when it is empty. */
+export const ANONYMOUS_AUTH = base64url('{}');

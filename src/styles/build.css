@@ -1,0 +1,37 @@
+/* Build image */
+.dk-bd-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.dk-bd-pick { display: flex; gap: 8px; flex-wrap: wrap; }
+.dk-bd-sel { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface); flex-wrap: wrap; }
+.dk-bd-sel .ui-icon { width: 16px; height: 16px; flex: none; color: var(--ink3); }
+.dk-bd-sel--bad { box-shadow: inset 0 0 0 2px var(--err); }
+.dk-bd-selname { font-weight: 700; margin-right: auto; word-break: break-all; }
+.dk-bd-files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: 190px; overflow: auto; font-size: 12.5px; }
+.dk-bd-files li { display: flex; justify-content: space-between; gap: 12px; padding: 3px 10px; border-radius: 8px; background: var(--surface); }
+.dk-bd-files code { font: 500 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-bd-sw { display: flex; gap: 22px; flex-wrap: wrap; }
+.dk-bd-go { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 12px 0; }
+.dk-bd-ok { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--ok-s); }
+.dk-bo { display: flex; flex-direction: column; gap: 6px; max-height: 60vh; overflow: auto; }
+.dk-bo-step { border-radius: 12px; background: var(--surface); padding: 6px 12px; }
+.dk-bo-h { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dk-bo-h .ui-icon { width: 15px; height: 15px; flex: none; color: var(--ink3); }
+.dk-bo-h small { color: var(--ink3); font-weight: 700; flex: none; }
+.dk-bo-h code { font: 600 12.5px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-bo-step--done .ui-icon { color: var(--ok); }
+.dk-bo-step--failed { box-shadow: inset 0 0 0 2px var(--err); background: color-mix(in srgb, var(--err) 10%, var(--surface)); }
+.dk-bo-step--failed .dk-bo-h .ui-icon, .dk-bo-step--failed .dk-bo-h code { color: var(--err); }
+.dk-bo-step--stopped .ui-icon { color: var(--warn); }
+.dk-bo-pre { margin: 4px 0 2px; font: 12px/1.5 var(--mono); color: var(--ink2); white-space: pre-wrap; word-break: break-word; }
+.dk-bo-act { padding: 2px 12px; font-family: var(--mono); }
+.dk-spin { animation: dk-spin 1.1s linear infinite; }
+@keyframes dk-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .dk-spin { animation: none; } }
+
+/* Push and tags */
+.dk-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dk-tagchip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px 2px 10px; border-radius: 10px; background: var(--surface); font: 600 12px var(--mono); }
+.dk-tagchip .dk-tagchip-x { display: grid; }
+.dk-tagadd { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+.dk-push-f { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+@media (max-width: 700px) { .dk-push-f { grid-template-columns: minmax(0, 1fr); } }
+.dk-tags-box { display: flex; flex-direction: column; gap: 8px; }
