@@ -190,6 +190,76 @@ export function parseTar(bytes: Uint8Array, maxBytes = TAR_MAX_BYTES, maxFiles =
   return files;
 }
 
+/** One header of a tar, without its data. */
+export interface TarEntry {
+  name: string;
+  /** '0' file, '5' directory, '2' symlink, and so on (the tar type flag). */
+  type: string;
+  size: number;
+  /** Permission bits (0o755). */
+  mode: number;
+  /** Seconds since the epoch. */
+  mtime: number;
+  uid: number;
+  gid: number;
+  linkname: string;
+}
+
+/**
+ * List the headers of a tar (all entry kinds), skipping the data. Used to read a directory listing from
+ * GET /containers/{id}/archive. Throws when the archive holds more than `maxEntries` entries.
+ */
+export function listTar(bytes: Uint8Array, maxEntries = 20000): TarEntry[] {
+  const out: TarEntry[] = [];
+  let longName: string | undefined;
+  let longLink: string | undefined;
+  let pax: Record<string, string> = {};
+  let pos = 0;
+  while (pos + 512 <= bytes.length) {
+    const h = bytes.subarray(pos, pos + 512);
+    if (h.every((x) => x === 0)) break;
+    let size = octal(h, 124, 12);
+    const type = String.fromCharCode(h[156] || 0x30);
+    let name = cstr(h, 0, 100);
+    if (cstr(h, 257, 5) === 'ustar') {
+      const prefix = cstr(h, 345, 155);
+      if (prefix) name = `${prefix}/${name}`;
+    }
+    const mode = octal(h, 100, 8) & 0o7777;
+    const uid = octal(h, 108, 8);
+    const gid = octal(h, 116, 8);
+    let mtime = octal(h, 136, 12);
+    let linkname = cstr(h, 157, 100);
+    pos += 512;
+    if (type === 'x' || type === 'L' || type === 'K') {
+      if (size > 64 * 1024 || pos + size > bytes.length) throw new Error('Corrupt tar header');
+      const body = bytes.subarray(pos, pos + size);
+      if (type === 'L') longName = cstr(body, 0, body.length);
+      else if (type === 'K') longLink = cstr(body, 0, body.length);
+      else pax = { ...pax, ...paxRecords(body) };
+      pos += Math.ceil(size / 512) * 512;
+      continue;
+    }
+    if (type === 'g') {
+      pos += Math.ceil(size / 512) * 512;
+      continue;
+    }
+    if (pax.size !== undefined && /^\d+$/.test(pax.size)) size = Number(pax.size);
+    if (pax.path) name = pax.path;
+    if (pax.linkpath) linkname = pax.linkpath;
+    if (pax.mtime && !Number.isNaN(parseFloat(pax.mtime))) mtime = Math.floor(parseFloat(pax.mtime));
+    if (longName !== undefined) name = longName;
+    if (longLink !== undefined) linkname = longLink;
+    longName = longLink = undefined;
+    pax = {};
+    if (out.length >= maxEntries) throw new Error('The archive holds too many entries');
+    out.push({ name, type, size: type === '0' || type === '7' ? size : 0, mode, mtime, uid, gid, linkname });
+    const skipData = type === '1' || type === '2' || type === '3' || type === '4' || type === '5' || type === '6' ? 0 : size;
+    pos += Math.ceil(skipData / 512) * 512;
+  }
+  return out;
+}
+
 /* ---------- bind mounts ---------- */
 
 export interface BindChange {

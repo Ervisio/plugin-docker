@@ -30,7 +30,7 @@ export interface CreatePrefill {
 
 export type Route =
   | { view: 'containers' }
-  | { view: 'container'; id: string; tab?: 'overview' | 'logs' | 'stats' | 'shell' | 'inspect' | 'settings' }
+  | { view: 'container'; id: string; tab?: 'overview' | 'logs' | 'stats' | 'shell' | 'attach' | 'files' | 'inspect' | 'settings' }
   | { view: 'stacks' }
   | { view: 'stack'; name: string }
   | { view: 'create'; /** container id to edit (recreate with the same settings) */ from?: string; /** image to start from */ image?: string; /** values to start the form with (from a template) */ prefill?: CreatePrefill }

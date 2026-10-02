@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { classify, docker } from '../api/engine';
 import { containerName } from '../api/format';
 import { useAsync } from '../api/hooks';
-import { containers, info } from '../api/resources';
+import { containers } from '../api/resources';
 import type { ContainerInspect } from '../api/types';
 import { t } from '../i18n';
 import { Button, Icon, Skeleton, toast } from '../kit';
@@ -13,19 +13,20 @@ import { EnvStep } from './create/EnvStep';
 import { ImageStep } from './create/ImageStep';
 import { NetworkStep } from './create/NetworkStep';
 import { ReviewStep, Summary } from './create/ReviewStep';
+import { ResourcesStep } from './create/ResourcesStep';
 import { RunView } from './create/RunView';
 import { StorageStep } from './create/StorageStep';
 import { problems as checkProblems, specFromInspect, specFromPrefill, usedHostPorts, type Base, type Spec } from './create/model';
 import type { PullState } from './create/pull';
 import { runCreate, type RunControl, type RunResult, type Step } from './create/run';
 
-const STEPS = ['image', 'storage', 'env', 'network', 'review'] as const;
+const STEPS = ['image', 'storage', 'env', 'network', 'resources', 'review'] as const;
 /** Which problem keys block which step. */
 const BLOCKS: Record<number, (keyof ReturnType<typeof checkProblems>)[]> = {
   0: ['image', 'name'],
   1: ['ports', 'mounts'],
   2: ['env'],
-  3: ['limits'],
+  4: ['limits', 'resources'],
 };
 
 /** New container wizard (design 028 b). With `from` it edits an existing container by recreating it. */
@@ -79,7 +80,6 @@ function Wizard({ from, initial, base }: { from?: string; initial: Spec; base?: 
   const [result, setResult] = useState<RunResult | undefined>();
   const control = useRef<RunControl | undefined>();
   const { data: list } = containers.use();
-  const ncpu = info.use().data?.info.NCPU;
 
   const patch = (p: Partial<Spec>) => setSpec((s) => ({ ...s, ...p }));
   useEffect(() => () => control.current?.cancel(), []);
@@ -172,9 +172,9 @@ function Wizard({ from, initial, base }: { from?: string; initial: Spec; base?: 
               {step === 0 && <ImageStep {...props} problems={probs} recreate={recreate} />}
               {step === 1 && <StorageStep {...props} problems={probs} from={from} />}
               {step === 2 && <EnvStep {...props} problems={probs} />}
-              {step === 3 && <NetworkStep {...props} problems={probs} />}
-              {step === 4 && <ReviewStep {...props} recreate={recreate} />}
-              {step === 3 && ncpu && spec.cpus && parseFloat(spec.cpus) > ncpu && <p className="dk-muted">{t('create.cpus.more', { n: ncpu })}</p>}
+              {step === 3 && <NetworkStep {...props} />}
+              {step === 4 && <ResourcesStep {...props} problems={probs} />}
+              {step === 5 && <ReviewStep {...props} recreate={recreate} />}
               <div className="dk-cr-nav">
                 {step > 0 ? <Button variant="ghost" icon="chevronleft" onClick={() => go(step - 1)}>{t('common.back')}</Button> : <Button variant="ghost" onClick={() => navigate({ view: 'containers' })}>{t('common.cancel')}</Button>}
                 <span className="dk-cr-sp" />

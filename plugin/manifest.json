@@ -35,6 +35,28 @@
         "adminUnlessGroup": "docker",
         "args": [
           {
+            "maxLen": 128,
+            "pattern": "[a-zA-Z0-9][a-zA-Z0-9_.-]*"
+          }
+        ],
+        "argv": [
+          "docker",
+          "-H",
+          "unix:///var/run/docker.sock",
+          "attach",
+          "--sig-proxy=false",
+          "--detach-keys=ctrl-p,ctrl-q",
+          "{0}"
+        ],
+        "description": "Attach to the main process of a container (detach with Ctrl+P Ctrl+Q)",
+        "name": "attach",
+        "pty": true
+      },
+      {
+        "admin": true,
+        "adminUnlessGroup": "docker",
+        "args": [
+          {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
           }
@@ -472,6 +494,18 @@
               "POST"
             ],
             "path": "/v1\\.[0-9]+/containers/create"
+          },
+          {
+            "methods": [
+              "PUT"
+            ],
+            "path": "/v1\\.[0-9]+/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}/archive"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/v1\\.[0-9]+/commit"
           },
           {
             "methods": [

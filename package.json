@@ -9,7 +9,7 @@
     "dev": "ervisio-plugin-pack copy && vite build --watch",
     "pack": "ervisio-plugin-pack pack",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/"
+    "test": "node --import ./test/register.mjs --test test/"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

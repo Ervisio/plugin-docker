@@ -170,3 +170,23 @@
 }
 @media (prefers-reduced-motion: reduce) { .dk-c-fold summary > .ui-icon, .dk-c-j-ch { transition: none; } }
 .dk-c-nets { display: flex; flex-direction: column; gap: 6px; }
+
+/* Files tab, attach note, commit dialog */
+.dk-c-files { gap: 10px; }
+.dk-c-fl-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dk-c-grow { flex: 1 1 220px; min-width: 0; }
+.dk-c-fl-note { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12.5px; }
+.dk-c-fl-name { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.dk-c-fl-nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 13px; }
+.dk-c-fl-tg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.dk-c-fl--dir { color: var(--acc); font-weight: 700; }
+.dk-c-fl-act { display: inline-flex; gap: 2px; justify-content: flex-end; }
+.dk-c-note { display: flex; gap: 8px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--surface); font-size: 12.5px; line-height: 1.5; color: var(--ink2); }
+.dk-c-note .ui-icon { flex: none; margin-top: 2px; color: var(--info); }
+.dk-c-commit { display: flex; flex-direction: column; gap: 12px; }
+.dk-c-commit-ref { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+.dk-c-commit-ref:nth-child(2) { grid-template-columns: 1fr 1fr; }
+@media (max-width: 600px) { .dk-c-commit-ref, .dk-c-commit-ref:nth-child(2) { grid-template-columns: minmax(0, 1fr); } }
+.dk-c-commit-done { display: flex; gap: 12px; align-items: flex-start; color: var(--ok); }
+.dk-c-commit-done b { color: var(--ink); }
+.dk-c-fl-pre { margin: 0; max-height: 50vh; overflow: auto; background: var(--bg); border-radius: 12px; padding: 12px 14px; font: 12.5px/1.6 var(--mono); color: var(--ink2); white-space: pre-wrap; word-break: break-all; }

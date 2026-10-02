@@ -9,6 +9,9 @@ import { Badge, Button, Checkbox, EmptyState, Icon, IconButton, Skeleton, toast,
 import { back, navigate, type RouteProps } from '../router';
 import { ErrorState } from '../ui/ErrorState';
 import { stateTone } from '../ui/StatusDot';
+import { AttachTab } from './container/AttachTab';
+import { CommitDialog } from './container/CommitDialog';
+import { FilesTab } from './container/FilesTab';
 import { InspectTab } from './container/InspectTab';
 import { LogsTab } from './container/Logs';
 import { Overview } from './container/Overview';
@@ -26,6 +29,8 @@ const TABS: { id: Tab; icon: string }[] = [
   { id: 'logs', icon: 'logs' },
   { id: 'stats', icon: 'cpu' },
   { id: 'shell', icon: 'terminal' },
+  { id: 'attach', icon: 'command' },
+  { id: 'files', icon: 'files' },
   { id: 'inspect', icon: 'code' },
   { id: 'settings', icon: 'cog' },
 ];
@@ -36,6 +41,7 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
   const { data: c, error, loading, reload } = useInspect(id);
   const [busy, setBusy] = useState<ContainerAction | null>(null);
   const [removing, setRemoving] = useState(false);
+  const [committing, setCommitting] = useState(false);
   const [rmVolumes, setRmVolumes] = useState(false);
   const [visited, setVisited] = useState<Set<Tab>>(new Set());
   // The shell remounts a view whenever its route changes, so tab clicks stay in local state (the route's tab is the first tab).
@@ -130,6 +136,7 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
             <Button variant="primary" icon="play" loading={busy === 'start'} disabled={!!busy} onClick={() => act('start')}>{t('common.start')}</Button>
           )}
           <Button icon="edit" onClick={() => navigate({ view: 'create', from: c.Id })}>{t('container.edit')}</Button>
+          <Button icon="archive" onClick={() => setCommitting(true)}>{t('container.commit')}</Button>
           <IconButton icon="trash" variant="danger" label={t('common.remove')} onClick={() => setRemoving(true)} />
         </div>
       </header>
@@ -150,9 +157,17 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
           <ShellTab id={c.Id} running={running} visible={active === 'shell'} onStart={() => act('start')} />
         </div>
       )}
+      {visited.has('attach') && (
+        <div hidden={active !== 'attach'}>
+          <AttachTab id={c.Id} running={running} visible={active === 'attach'} onStart={() => act('start')} openStdin={!!c.Config.OpenStdin} tty={!!c.Config.Tty} />
+        </div>
+      )}
+      {active === 'files' && <FilesTab id={c.Id} running={running} />}
       {active === 'inspect' && <InspectTab id={c.Id} inspect={c} />}
       {active === 'settings' && <SettingsTab inspect={c} onChanged={reload} />}
       {loading && <span className="dk-c-sr" aria-live="polite">{t('common.loading')}</span>}
+
+      <CommitDialog open={committing} onClose={() => setCommitting(false)} id={c.Id} name={name} image={c.Config.Image} running={running} />
 
       <TypeConfirm
         open={removing}

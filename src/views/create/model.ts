@@ -26,6 +26,20 @@ export interface KV {
   key: string;
   value: string;
 }
+export interface DeviceRow {
+  id: string;
+  host: string;
+  container: string;
+  /** Any of r (read), w (write), m (mknod). */
+  perms: string;
+}
+export interface UlimitRow {
+  id: string;
+  name: string;
+  soft: string;
+  hard: string;
+}
+export type GpuMode = 'off' | 'all' | 'count' | 'ids';
 export type Restart = 'no' | 'always' | 'unless-stopped' | 'on-failure';
 
 export interface Spec {
@@ -39,6 +53,25 @@ export interface Spec {
   hostname: string;
   memoryMb: string;
   cpus: string;
+  cpuShares: string;
+  cpuset: string;
+  memoryReservationMb: string;
+  /** Memory plus swap in MB; "-1" for unlimited swap; empty for the Engine's default. */
+  memorySwapMb: string;
+  pidsLimit: string;
+  shmMb: string;
+  ulimits: UlimitRow[];
+  gpu: GpuMode;
+  gpuCount: string;
+  gpuIds: string;
+  devices: DeviceRow[];
+  capAdd: string[];
+  capDrop: string[];
+  sysctls: KV[];
+  init: boolean;
+  /** Keep stdin open (docker run -i). */
+  openStdin: boolean;
+  tty: boolean;
   labels: KV[];
   command: string;
   user: string;
@@ -67,6 +100,23 @@ export const emptySpec = (): Spec => ({
   hostname: '',
   memoryMb: '',
   cpus: '',
+  cpuShares: '',
+  cpuset: '',
+  memoryReservationMb: '',
+  memorySwapMb: '',
+  pidsLimit: '',
+  shmMb: '',
+  ulimits: [],
+  gpu: 'off',
+  gpuCount: '1',
+  gpuIds: '',
+  devices: [],
+  capAdd: [],
+  capDrop: [],
+  sysctls: [],
+  init: false,
+  openStdin: false,
+  tty: false,
   labels: [],
   command: '',
   user: '',
@@ -133,6 +183,35 @@ export const joinCommand = (a: string[]): string => a.map(shQuote).join(' ');
 
 /* ---------- from an existing container ---------- */
 
+const MB = 1048576;
+export const GPU_CAPS = [['gpu']];
+const isGpuRequest = (r: { Driver?: string; Capabilities?: string[][] }): boolean => r.Driver === 'nvidia' || !!r.Capabilities?.some((c) => c.includes('gpu'));
+const stripCap = (c: string): string => c.replace(/^CAP_/, '');
+
+/** The resource, device, capability and sysctl fields of an inspected HostConfig, as form values. */
+export function resourcesFromHostConfig(hc: Record<string, any>): Pick<Spec, 'cpuShares' | 'cpuset' | 'memoryReservationMb' | 'memorySwapMb' | 'pidsLimit' | 'shmMb' | 'ulimits' | 'gpu' | 'gpuCount' | 'gpuIds' | 'devices' | 'capAdd' | 'capDrop' | 'sysctls'> {
+  const req = ((hc.DeviceRequests ?? []) as { Driver?: string; Count?: number; DeviceIDs?: string[]; Capabilities?: string[][] }[]).find(isGpuRequest);
+  const ids = req?.DeviceIDs ?? [];
+  const swap = Number(hc.MemorySwap ?? 0);
+  const defaultSwap = hc.Memory && swap === hc.Memory * 2;
+  return {
+    cpuShares: hc.CpuShares ? String(hc.CpuShares) : '',
+    cpuset: hc.CpusetCpus ?? '',
+    memoryReservationMb: hc.MemoryReservation ? String(Math.round(hc.MemoryReservation / MB)) : '',
+    memorySwapMb: swap === -1 ? '-1' : swap > 0 && !defaultSwap ? String(Math.round(swap / MB)) : '',
+    pidsLimit: hc.PidsLimit && hc.PidsLimit > 0 ? String(hc.PidsLimit) : '',
+    shmMb: hc.ShmSize && hc.ShmSize !== 64 * MB ? String(Math.round(hc.ShmSize / MB)) : '',
+    ulimits: ((hc.Ulimits ?? []) as { Name: string; Soft: number; Hard: number }[]).map((u) => ({ id: rid(), name: u.Name, soft: String(u.Soft), hard: String(u.Hard) })),
+    gpu: !req ? 'off' : ids.length ? 'ids' : req.Count === -1 || !req.Count ? 'all' : 'count',
+    gpuCount: req && req.Count && req.Count > 0 ? String(req.Count) : '1',
+    gpuIds: ids.join(', '),
+    devices: ((hc.Devices ?? []) as { PathOnHost: string; PathInContainer: string; CgroupPermissions?: string }[]).map((d) => ({ id: rid(), host: d.PathOnHost, container: d.PathInContainer, perms: d.CgroupPermissions || 'rwm' })),
+    capAdd: ((hc.CapAdd ?? []) as string[]).map(stripCap),
+    capDrop: ((hc.CapDrop ?? []) as string[]).map(stripCap),
+    sysctls: Object.entries((hc.Sysctls ?? {}) as Record<string, string>).map(([k, v]) => kv(k, v)),
+  };
+}
+
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export function specFromInspect(ins: ContainerInspect, imageConfig: Base['imageConfig']): { spec: Spec; base: Base } {
@@ -177,6 +256,10 @@ export function specFromInspect(ins: ContainerInspect, imageConfig: Base['imageC
     hostname: cfg.Hostname && cfg.Hostname !== ins.Id.slice(0, 12) ? cfg.Hostname : '',
     memoryMb: hc.Memory ? String(Math.round(hc.Memory / 1048576)) : '',
     cpus: hc.NanoCpus ? String(hc.NanoCpus / 1e9) : '',
+    ...resourcesFromHostConfig(hc),
+    init: !!hc.Init,
+    openStdin: !!cfg.OpenStdin,
+    tty: !!cfg.Tty,
     labels,
     command: cfg.Cmd && !same(cfg.Cmd, imageConfig?.Cmd) ? joinCommand(cfg.Cmd) : '',
     user: cfg.User ?? '',
@@ -226,18 +309,15 @@ export function createBody(spec: Spec, base?: Base): Record<string, any> {
       (bindings[key] ??= []).push({ HostIp: hp.ip, HostPort: hp.port });
     }
   }
-  const mem = spec.memoryMb.trim() ? Math.round(parseFloat(spec.memoryMb) * 1048576) : 0;
   const hc: Record<string, any> = {
     ...bhc,
     Binds: spec.mounts.filter((m) => m.source.trim() && m.target.trim()).map((m) => `${m.source.trim()}:${m.target.trim()}${m.ro ? ':ro' : ''}`),
     PortBindings: bindings,
     NetworkMode: spec.network === 'bridge' ? 'bridge' : spec.network,
     RestartPolicy: { Name: spec.restart === 'no' ? '' : spec.restart, MaximumRetryCount: spec.restart === 'on-failure' ? (bhc.RestartPolicy?.MaximumRetryCount || 5) : 0 },
-    Memory: mem,
-    NanoCpus: spec.cpus.trim() ? Math.round(parseFloat(spec.cpus) * 1e9) : 0,
     Privileged: spec.privileged,
   };
-  if (bhc.Memory !== mem) hc.MemorySwap = 0;
+  Object.assign(hc, resourceFields(spec, bhc));
   if (Array.isArray(bhc.Mounts)) {
     const keep = bhc.Mounts.filter((m: { Type?: string }) => m.Type === 'tmpfs');
     if (keep.length) hc.Mounts = keep;
@@ -250,6 +330,8 @@ export function createBody(spec: Spec, base?: Base): Record<string, any> {
     Labels: Object.fromEntries(spec.labels.filter((l) => l.key.trim()).map((l) => [l.key.trim(), l.value])),
     HostConfig: hc,
   };
+  body.Tty = spec.tty;
+  body.OpenStdin = spec.openStdin;
   if (Object.keys(exposed).length) body.ExposedPorts = exposed;
   if (spec.hostname.trim() && spec.network !== 'host' && !spec.network.startsWith('container:')) body.Hostname = spec.hostname.trim();
   if (spec.command.trim()) body.Cmd = splitCommand(spec.command);
@@ -259,6 +341,45 @@ export function createBody(spec: Spec, base?: Base): Record<string, any> {
     body.NetworkingConfig = { EndpointsConfig: { [spec.network]: {} } };
   }
   return body;
+}
+
+const num = (s: string): number => (s.trim() ? parseFloat(s) : 0);
+
+/** The GPU request of the form (driver nvidia, capabilities gpu), or undefined when GPUs are off. */
+export function gpuRequest(spec: Spec): Record<string, any> | undefined {
+  if (spec.gpu === 'off') return undefined;
+  const r: Record<string, any> = { Driver: 'nvidia', Capabilities: GPU_CAPS.map((c) => [...c]), Options: {} };
+  if (spec.gpu === 'all') r.Count = -1;
+  else if (spec.gpu === 'count') r.Count = Math.round(num(spec.gpuCount)) || 1;
+  else r.DeviceIDs = spec.gpuIds.split(/[\s,]+/).filter(Boolean);
+  return r;
+}
+
+/** The HostConfig fields for resources, devices, capabilities and sysctls. `bhc` is the old HostConfig on a recreate. */
+export function resourceFields(spec: Spec, bhc: Record<string, any> = {}): Record<string, any> {
+  const mem = spec.memoryMb.trim() ? Math.round(parseFloat(spec.memoryMb) * MB) : 0;
+  // Empty means the Engine's default (twice the memory); a total below the memory limit is caught by resourceProblem.
+  const swap = spec.memorySwapMb.trim() === '-1' ? -1 : Math.round(num(spec.memorySwapMb) * MB);
+  const others = ((bhc.DeviceRequests ?? []) as { Driver?: string; Capabilities?: string[][] }[]).filter((r) => !isGpuRequest(r));
+  const gpu = gpuRequest(spec);
+  const requests = [...others, ...(gpu ? [gpu] : [])];
+  return {
+    Memory: mem,
+    MemorySwap: swap,
+    MemoryReservation: Math.round(num(spec.memoryReservationMb) * MB),
+    NanoCpus: spec.cpus.trim() ? Math.round(parseFloat(spec.cpus) * 1e9) : 0,
+    CpuShares: Math.round(num(spec.cpuShares)),
+    CpusetCpus: spec.cpuset.trim(),
+    PidsLimit: spec.pidsLimit.trim() ? Math.round(parseFloat(spec.pidsLimit)) : 0,
+    ShmSize: Math.round(num(spec.shmMb) * MB),
+    Ulimits: spec.ulimits.filter((u) => u.name.trim()).map((u) => ({ Name: u.name.trim(), Soft: Math.round(num(u.soft)), Hard: Math.round(num(u.hard)) })),
+    DeviceRequests: requests.length ? requests : null,
+    Devices: spec.devices.filter((d) => d.host.trim()).map((d) => ({ PathOnHost: d.host.trim(), PathInContainer: d.container.trim() || d.host.trim(), CgroupPermissions: d.perms || 'rwm' })),
+    CapAdd: spec.capAdd.length ? spec.capAdd : null,
+    CapDrop: spec.capDrop.length ? spec.capDrop : null,
+    Sysctls: Object.fromEntries(spec.sysctls.filter((x) => x.key.trim()).map((x) => [x.key.trim(), x.value])),
+    Init: spec.init ? true : null,
+  };
 }
 
 /* ---------- docker run text ---------- */
@@ -282,7 +403,24 @@ export function runText(spec: Spec, opts: { mask?: boolean } = {}): string {
   for (const m of spec.mounts) if (m.source.trim() && m.target.trim()) add(`-v ${shQuote(`${m.source.trim()}:${m.target.trim()}${m.ro ? ':ro' : ''}`)}`);
   for (const e of spec.env) if (e.key.trim()) add(`-e ${shQuote(`${e.key.trim()}=${mask && isSecretKey(e.key) && e.value ? '********' : e.value}`)}`);
   if (spec.memoryMb.trim()) add(`--memory ${spec.memoryMb.trim()}m`);
+  if (spec.memoryReservationMb.trim()) add(`--memory-reservation ${spec.memoryReservationMb.trim()}m`);
+  if (spec.memorySwapMb.trim()) add(`--memory-swap ${spec.memorySwapMb.trim() === '-1' ? '-1' : `${spec.memorySwapMb.trim()}m`}`);
   if (spec.cpus.trim()) add(`--cpus ${spec.cpus.trim()}`);
+  if (spec.cpuShares.trim()) add(`--cpu-shares ${spec.cpuShares.trim()}`);
+  if (spec.cpuset.trim()) add(`--cpuset-cpus ${shQuote(spec.cpuset.trim())}`);
+  if (spec.pidsLimit.trim()) add(`--pids-limit ${spec.pidsLimit.trim()}`);
+  if (spec.shmMb.trim()) add(`--shm-size ${spec.shmMb.trim()}m`);
+  for (const u of spec.ulimits) if (u.name.trim()) add(`--ulimit ${shQuote(`${u.name.trim()}=${u.soft.trim() || u.hard.trim()}:${u.hard.trim() || u.soft.trim()}`)}`);
+  if (spec.gpu === 'all') add('--gpus all');
+  else if (spec.gpu === 'count') add(`--gpus ${spec.gpuCount.trim() || '1'}`);
+  else if (spec.gpu === 'ids') add(`--gpus ${shQuote(`"device=${spec.gpuIds.split(/[\s,]+/).filter(Boolean).join(',')}"`)}`);
+  for (const d of spec.devices) if (d.host.trim()) add(`--device ${shQuote(`${d.host.trim()}:${d.container.trim() || d.host.trim()}:${d.perms || 'rwm'}`)}`);
+  for (const c of spec.capAdd) add(`--cap-add ${c}`);
+  for (const c of spec.capDrop) add(`--cap-drop ${c}`);
+  for (const x of spec.sysctls) if (x.key.trim()) add(`--sysctl ${shQuote(`${x.key.trim()}=${x.value}`)}`);
+  if (spec.init) add('--init');
+  if (spec.openStdin) add('-i');
+  if (spec.tty) add('-t');
   for (const l of spec.labels) if (l.key.trim()) add(`-l ${shQuote(`${l.key.trim()}=${l.value}`)}`);
   if (spec.user.trim()) add(`--user ${shQuote(spec.user.trim())}`);
   if (spec.privileged) add('--privileged');
@@ -338,6 +476,42 @@ export interface Problems {
   mounts?: string;
   env?: string;
   limits?: string;
+  /** i18n key of the first problem in the resources, devices, capabilities and sysctls fields. */
+  resources?: string;
+}
+
+const INT = /^\d+$/;
+const intOrNeg = (s: string): boolean => /^-?\d+$/.test(s.trim());
+
+/** First problem in the extra resource fields (an i18n key), or undefined. */
+export function resourceProblem(spec: Spec): string | undefined {
+  const dec = (s: string) => /^\d+(\.\d+)?$/.test(s.trim());
+  if (spec.cpuShares.trim() && (!INT.test(spec.cpuShares.trim()) || +spec.cpuShares < 2)) return 'create.err.cpuShares';
+  if (spec.cpuset.trim() && !/^\d+(-\d+)?(,\d+(-\d+)?)*$/.test(spec.cpuset.trim())) return 'create.err.cpuset';
+  const mem = num(spec.memoryMb);
+  if (spec.memoryReservationMb.trim() && (!dec(spec.memoryReservationMb) || (mem && num(spec.memoryReservationMb) > mem))) return 'create.err.reservation';
+  const sw = spec.memorySwapMb.trim();
+  if (sw && sw !== '-1' && (!dec(sw) || (mem ? +sw < mem : false) || (!mem && +sw > 0))) return mem ? 'create.err.swap' : 'create.err.swapNoMem';
+  if (spec.pidsLimit.trim() && (!INT.test(spec.pidsLimit.trim()) || +spec.pidsLimit < 1)) return 'create.err.pids';
+  if (spec.shmMb.trim() && (!dec(spec.shmMb) || +spec.shmMb < 1)) return 'create.err.shm';
+  for (const u of spec.ulimits) {
+    if (!u.name.trim() && !u.soft.trim() && !u.hard.trim()) continue;
+    if (!u.name.trim() || !intOrNeg(u.soft) || !intOrNeg(u.hard) || (+u.soft > +u.hard && +u.hard !== -1)) return 'create.err.ulimit';
+  }
+  if (spec.gpu === 'count' && (!INT.test(spec.gpuCount.trim()) || +spec.gpuCount < 1)) return 'create.err.gpuCount';
+  if (spec.gpu === 'ids' && !spec.gpuIds.split(/[\s,]+/).some(Boolean)) return 'create.err.gpuIds';
+  for (const d of spec.devices) {
+    if (!d.host.trim() && !d.container.trim()) continue;
+    if (!d.host.trim().startsWith('/dev/') && !d.host.trim().startsWith('/') ) return 'create.err.device';
+    if (d.container.trim() && !d.container.trim().startsWith('/')) return 'create.err.device';
+    if (!/^[rwm]{1,3}$/.test(d.perms)) return 'create.err.device';
+  }
+  if (spec.capAdd.some((c) => spec.capDrop.includes(c))) return 'create.err.capBoth';
+  for (const x of spec.sysctls) {
+    if (!x.key.trim() && !x.value) continue;
+    if (!/^[a-z0-9_]+(\.[a-z0-9_-]+)+$/i.test(x.key.trim()) && !/^[a-z0-9_]+\/[a-z0-9_/.-]+$/i.test(x.key.trim())) return 'create.err.sysctl';
+  }
+  return undefined;
 }
 
 /** Empty object when the form can be submitted. Values are i18n keys. */
@@ -357,6 +531,8 @@ export function problems(spec: Spec, ctx: { names: Set<string>; used: Map<string
   const m = spec.memoryMb.trim();
   const c = spec.cpus.trim();
   if ((m && !(parseFloat(m) >= 6)) || (c && !(parseFloat(c) > 0)) || (m && !/^\d+(\.\d+)?$/.test(m)) || (c && !/^\d+(\.\d+)?$/.test(c))) p.limits = 'create.err.limits';
+  const res = resourceProblem(spec);
+  if (res) p.resources = res;
   return p;
 }
 
