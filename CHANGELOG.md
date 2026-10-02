@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.1.1
+
+* The plugin has a logo: the Docker logo is shown instead of the generic icon in the rail, Plugins and Browse (consoles newer than 0.4.0; older ones keep the icon).
+
 ## 2.1.0
 
 * Stacks started by Portainer now work. Portainer runs `docker compose` inside its own container, so a stack's folder
