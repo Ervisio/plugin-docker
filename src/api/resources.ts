@@ -12,7 +12,8 @@ import { engineVersion } from './engine';
 const typeIs = (...types: string[]) => (ev: { Type: string; Action: string }) =>
   (types.includes(ev.Type) && !ev.Action.startsWith('exec_') && ev.Action !== 'attach') || (ev.Type === 'system' && ev.Action === 'reconnect');
 
-export const containers = createResource<Container[]>(() => docker.get<Container[]>('/containers/json', { all: '1' }), {
+/** The helper containers behind volume browsing, backup and restore (see volumes.ts) are not listed: they last minutes. */
+export const containers = createResource<Container[]>(async () => (await docker.get<Container[]>('/containers/json', { all: '1' })).filter((c) => !c.Labels?.['io.ervisio.helper']), {
   intervalMs: 5000,
   refreshOn: typeIs('container'),
 });

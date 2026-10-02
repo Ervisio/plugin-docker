@@ -15,6 +15,7 @@ import { SettingsPage } from './SettingsPage';
 import { TemplateEditPage } from './TemplateEditPage';
 import { TemplatePage } from './TemplatePage';
 import { TemplatesPage } from './TemplatesPage';
+import { VolumePage } from './VolumePage';
 import { VolumesPage } from './VolumesPage';
 
 /** Maps a route to its component. The shell renders this inside its content area. */
@@ -42,6 +43,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <BuildPage />;
     case 'volumes':
       return <VolumesPage />;
+    case 'volume':
+      return <VolumePage name={route.name} />;
     case 'networks':
       return <NetworksPage />;
     case 'registries':

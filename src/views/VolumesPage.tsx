@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { docker, errorText, resetEngine } from '../api/engine';
 import { formatBytes, relativeTime } from '../api/format';
 import { containers, diskUsage, volumes } from '../api/resources';
 import type { VolumeInfo } from '../api/types';
 import { t, tn } from '../i18n';
 import { Badge, Button, EmptyState, Icon, IconButton, Input, Segmented, Skeleton, toast, ConfirmDialog } from '../kit';
-import { useSearch } from '../router';
+import { removeHelpersOf, sweepHelpers } from '../api/volumes';
+import { navigate, useSearch } from '../router';
 import { DiskBar } from '../ui/DiskBar';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
@@ -22,6 +23,8 @@ export function VolumesPage() {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<VolumeInfo | null>(null);
+  // Helper containers left behind by an earlier visit (see api/volumes.ts).
+  useEffect(() => { void sweepHelpers().catch(() => undefined); }, []);
 
   const usedBy = useMemo(() => groupContainers(cts, (c) => (c.Mounts ?? []).filter((m) => m.Type === 'volume' && m.Name).map((m) => m.Name!)), [cts]);
   const sizes = useMemo(() => new Map((df?.Volumes ?? []).map((v) => [v.Name, v.UsageData?.Size ?? -1])), [df]);
@@ -47,6 +50,8 @@ export function VolumesPage() {
     const v = removing;
     if (!v) return;
     try {
+      // A helper of a recent backup still holds the volume: it goes first.
+      await removeHelpersOf(v.Name).catch(() => undefined);
       await docker.delete(`/volumes/${encodeURIComponent(v.Name)}`);
       toast.ok(t('res.volumes.removed', { name: v.Name }));
       void volumes.refresh();
@@ -108,6 +113,7 @@ export function VolumesPage() {
                       <td className="dk-hide-md dk-muted">{v.CreatedAt ? relativeTime(v.CreatedAt) : '–'}</td>
                       <td>
                         <div className="dk-act">
+                          <IconButton icon="files" size="sm" variant="ghost" label={t('volume.open')} onClick={() => navigate({ view: 'volume', name: v.Name })} />
                           <IconButton icon="trash" size="sm" variant="ghost" label={users.length ? t('res.volumes.inUseHint') : t('common.remove')} disabled={users.length > 0} onClick={() => setRemoving(v)} />
                         </div>
                       </td>

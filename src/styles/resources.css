@@ -126,3 +126,7 @@
   .dk-layer { grid-template-columns: 84px minmax(60px, 1fr); }
   .dk-layer small { display: none; }
 }
+.dk-chk { width: 34px; padding-right: 0 !important; }
+.dk-selbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; border-radius: 12px; background: var(--sunk); font-size: 13px; }
+.dk-ld { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.dk-ld li { display: flex; align-items: center; gap: 8px; }

@@ -14,6 +14,8 @@ import { realTags, refPath } from './resources/imageRef';
 import { LayersRow } from './resources/LayersRow';
 import { PullPanel } from './resources/PullPanel';
 import { PushPanel } from './resources/PushPanel';
+import { ImportPanel } from './resources/ImportPanel';
+import { exportImages } from './resources/transfer';
 import { TagsRow } from './resources/TagsRow';
 import { checkAll, forget, recheck, useUpdates } from './resources/updates';
 
@@ -56,6 +58,9 @@ export function ImagesPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [removing, setRemoving] = useState<Row | null>(null);
   const [force, setForce] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   const usedBy = useMemo(() => groupContainers(cts, (c) => [c.ImageID]), [cts]);
   const rows = useMemo(() => toRows(data ?? []), [data]);
@@ -88,6 +93,7 @@ export function ImagesPage() {
         <>
           <Button icon="refresh" loading={upd.checking > 0} onClick={() => void checkAll(data ?? [], true)}>{t('res.images.check')}</Button>
           <Button icon="broom" onClick={() => navigate({ view: 'cleanup' })}>{t('disk.cleanup')}</Button>
+          <Button icon="upload" onClick={() => setImporting(true)}>{t('res.import.open')}</Button>
           <Button icon="code" onClick={() => navigate({ view: 'build' })}>{t('build.open')}</Button>
           <Button variant="primary" icon="download" onClick={() => setPull({ ref: '', auto: false, n: Date.now() })}>{t('res.images.pull')}</Button>
         </>
@@ -97,6 +103,20 @@ export function ImagesPage() {
 
   if (!data && error) return <>{header}<ErrorState error={error} onRetry={() => { resetEngine(); void images.refresh(); }} /></>;
   if (!data && loading) return <>{header}<Skeleton height={90} style={{ borderRadius: 18 }} /><Skeleton lines={6} /></>;
+
+  /** The reference to export for a row: its tag, or the id of an untagged image. */
+  const nameOf = (r: Row) => r.ref ?? r.img.Id;
+  const doExport = async (names: string[]) => {
+    setExporting(true);
+    try {
+      const r = await exportImages([...new Set(names)]);
+      toast.ok(t('res.export.started', { name: r.filename }));
+    } catch (e) {
+      toast.err(t('res.export.fail'), errorText(e));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const doRemove = async () => {
     const r = removing;
@@ -137,12 +157,20 @@ export function ImagesPage() {
           }}
         />
       )}
+      {importing && <ImportPanel onClose={() => setImporting(false)} onDone={() => { void images.refresh(); void diskUsage.refresh(); }} />}
       {push && <PushPanel key={push.n} image={push} onClose={() => setPush(null)} onDone={() => { void images.refresh(); }} />}
       <section className="dk-card">
         <div className="dk-bar1">
           <Input fieldClassName="dk-grow" icon="search" placeholder={t('res.images.filter')} aria-label={t('res.images.filter')} value={q} onChange={(e) => setQ(e.target.value)} />
           <Segmented options={segs} value={filter} onChange={(v) => setFilter(v as Filter)} aria-label={t('nav.images')} />
         </div>
+        {sel.size > 0 && (
+          <div className="dk-selbar" role="status">
+            <span>{tn('res.export.selected', { n: sel.size })}</span>
+            <Button size="sm" variant="primary" icon="archive" loading={exporting} onClick={() => void doExport(rows.filter((r) => sel.has(r.key)).map(nameOf))}>{t('res.export.selectedGo')}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>{t('res.export.clear')}</Button>
+          </div>
+        )}
         {upd.lastAt > 0 && <small className="dk-muted">{t('res.images.checked', { when: relativeTime(upd.lastAt / 1000) })}</small>}
         {rows.length === 0 ? (
           <EmptyState icon="image" hue="sw" title={t('res.images.empty.title')} text={t('res.images.empty.text')} action={<Button variant="primary" icon="download" onClick={() => setPull({ ref: '', auto: false, n: Date.now() })}>{t('res.images.pull')}</Button>} />
@@ -153,6 +181,7 @@ export function ImagesPage() {
             <table className="dk-table">
               <thead>
                 <tr>
+                  <th className="dk-chk"><Checkbox aria-label={t('res.export.all')} checked={visible.length > 0 && visible.every((r) => sel.has(r.key))} onChange={(on) => setSel(on ? new Set(visible.map((r) => r.key)) : new Set())} /></th>
                   <th>{t('res.images.col.image')}</th>
                   <th>{t('res.images.col.tag')}</th>
                   <th>{t('res.col.usedBy')}</th>
@@ -170,6 +199,7 @@ export function ImagesPage() {
                   return (
                     <Fragment key={r.key}>
                       <tr className={isOpen ? 'dk-sel' : undefined}>
+                        <td className="dk-chk"><Checkbox aria-label={t('res.export.pick', { name })} checked={sel.has(r.key)} onChange={(on) => setSel((c) => { const n = new Set(c); if (on) n.add(r.key); else n.delete(r.key); return n; })} /></td>
                         <td>
                           <span className={`dk-repo${r.ref ? '' : ' dk-repo--none'}`} title={r.repo}>{r.repo}</span>
                           {!r.ref && <small className="dk-muted dk-id">{shortId(r.img.Id)}</small>}
@@ -188,6 +218,7 @@ export function ImagesPage() {
                         <td>
                           <div className="dk-act">
                             {r.ref && <IconButton icon="download" size="sm" variant="ghost" label={t('res.images.pullAgain')} onClick={() => setPull({ ref: r.ref!, auto: true, n: Date.now() })} />}
+                            <IconButton icon="archive" size="sm" variant="ghost" label={t('res.export.one')} onClick={() => void doExport([nameOf(r)])} />
                             {r.ref && <IconButton icon="play" size="sm" variant="ghost" label={t('res.images.run')} onClick={() => navigate({ view: 'create', image: r.ref })} />}
                             <IconButton icon="upload" size="sm" variant="ghost" label={t('res.images.push')} onClick={() => setPush({ id: r.img.Id, tags: r.ref ? [r.ref, ...realTags(r.img.RepoTags).filter((x) => x !== r.ref)] : realTags(r.img.RepoTags), n: Date.now() })} />
                             <IconButton icon="layers" size="sm" variant="ghost" label={t('res.images.layers')} onClick={() => setOpen(isOpen ? null : r.key)} />
@@ -197,7 +228,7 @@ export function ImagesPage() {
                       </tr>
                       {isOpen && (
                         <tr className="dk-exp">
-                          <td colSpan={7}>
+                          <td colSpan={8}>
                             <div className="dk-exp-in">
                               <div className="dk-exp-h">
                                 <b>{t('res.images.layersOf', { name })}</b>
@@ -205,6 +236,7 @@ export function ImagesPage() {
                                 {r.ref && u?.kind !== 'newer' && (
                                   <Button size="sm" variant="ghost" icon="refresh" onClick={() => void recheck(r.ref!, r.img)}>{t('res.images.checkOne')}</Button>
                                 )}
+                                {realTags(r.img.RepoTags).length > 1 && <Button size="sm" variant="ghost" icon="archive" onClick={() => void doExport(realTags(r.img.RepoTags))}>{t('res.export.allTags', { n: realTags(r.img.RepoTags).length })}</Button>}
                                 <IconButton icon="close" size="sm" variant="ghost" label={t('common.close')} onClick={() => setOpen(null)} />
                               </div>
                               <TagsRow id={r.img.Id} tags={realTags(r.img.RepoTags)} />
