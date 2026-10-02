@@ -50,6 +50,8 @@ export interface AlertRule {
   memBasis?: 'limit' | 'host';
   /** Older files: container names. */
   containers?: string[];
+  /** Also send the alert through the notification channels set up in Ervisio (needs the notify capability). */
+  notify?: boolean;
 }
 export interface AlertsFile {
   rules: AlertRule[];
@@ -68,6 +70,11 @@ export interface AlertHistoryItem {
 }
 export interface AlertsHistoryFile {
   items: AlertHistoryItem[];
+}
+
+/** Alerts already sent outside the browser, so a page and a widget open together do not send twice. */
+export interface AlertsSentFile {
+  sent: Record<string, number>;
 }
 
 export interface AutoUpdateConfig {
@@ -101,6 +108,7 @@ export interface FileMap {
   registries: RegistriesFile;
   alerts: AlertsFile;
   'alerts-history': AlertsHistoryFile;
+  'alerts-sent': AlertsSentFile;
   autoupdate: AutoUpdateFile;
   'templates-sources': TemplateSourcesFile;
 }
@@ -111,6 +119,7 @@ export const DEFAULTS: { [K in FileName]: FileMap[K] } = {
   registries: { registries: [] },
   alerts: { rules: [] },
   'alerts-history': { items: [] },
+  'alerts-sent': { sent: {} },
   autoupdate: {
     config: {
       enabled: false,

@@ -2,6 +2,16 @@ import type { AreaStrings } from '..';
 
 const s: AreaStrings = {
   en: {
+    'alerts.form.notify': 'Also send through notification channels',
+    'alerts.form.notify.hint': 'Email, Telegram, ntfy, Gotify or a webhook, as set up in Settings › Notification channels.',
+    'alerts.ch.test': 'Test notification channels',
+    'alerts.ch.badge': 'Channels',
+    'alerts.ch.ok': 'Test message sent to {n} channels',
+    'alerts.ch.none.title': 'No channel receives plugin messages',
+    'alerts.ch.none.text': 'An administrator sets channels up in Settings › Notification channels and turns on "plugins" for them.',
+    'alerts.ch.failed.title': '{n} channels could not deliver',
+    'alerts.ch.failed.text': 'Open Settings › Notification channels and use Test there to see the reason.',
+    'alerts.ch.fail': 'Could not send the test message',
     'alerts.title': 'Alerts',
     'alerts.sub': 'Get a message when a container stops, restarts in a loop, turns unhealthy or uses too much.',
     'alerts.notice.title': 'Alerts are checked while Ervisio is open in a browser',
@@ -92,6 +102,16 @@ const s: AreaStrings = {
     'alerts.fire.disk.d': '{size} used, above {limit} GB.',
   },
   it: {
+    'alerts.form.notify': 'Invia anche tramite i canali di notifica',
+    'alerts.form.notify.hint': 'Email, Telegram, ntfy, Gotify o un webhook, come impostati in Impostazioni › Canali di notifica.',
+    'alerts.ch.test': 'Prova i canali di notifica',
+    'alerts.ch.badge': 'Canali',
+    'alerts.ch.ok': 'Messaggio di prova inviato a {n} canali',
+    'alerts.ch.none.title': 'Nessun canale riceve i messaggi dei plugin',
+    'alerts.ch.none.text': 'Un amministratore imposta i canali in Impostazioni › Canali di notifica e attiva "plugins" per ognuno.',
+    'alerts.ch.failed.title': '{n} canali non hanno consegnato',
+    'alerts.ch.failed.text': 'Apri Impostazioni › Canali di notifica e usa Prova lì per vedere il motivo.',
+    'alerts.ch.fail': 'Impossibile inviare il messaggio di prova',
     'alerts.title': 'Avvisi',
     'alerts.sub': 'Ricevi un messaggio quando un container si ferma, si riavvia in continuazione, diventa non sano o consuma troppo.',
     'alerts.notice.title': 'Gli avvisi sono controllati mentre Ervisio è aperto in un browser',

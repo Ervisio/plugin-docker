@@ -12,7 +12,8 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { t } from '../i18n';
 import { toast } from '../kit';
-import { ensureFile, loadFile, setFile, subscribeFile, type AlertHistoryItem, type AlertRule } from '../settings';
+import { ensureFile, loadFile, saveFile, setFile, subscribeFile, type AlertHistoryItem, type AlertRule } from '../settings';
+import { getSdk } from '../sdk';
 import { docker } from './engine';
 import { subscribeEvents } from './events';
 import { containerName, formatBytes } from './format';
@@ -98,11 +99,51 @@ function fire(rule: AlertRule, title: string, detail: string, c?: { name: string
   history = [item, ...history].slice(0, HISTORY_MAX);
   emit();
   persist();
+  if (rule.notify) void sendThroughChannels(item);
   try {
     toast.err(title, detail);
   } catch {
     /* the page may be closing */
   }
+}
+
+/** Whether this Ervisio can send through its notification channels (0.5 or later, notify capability). */
+export const canNotify = (): boolean => typeof getSdk().api.notify === 'function';
+
+/**
+ * Sends one alert through the channels an administrator set up in Settings › Notification channels. The page and the
+ * Overview widget each run an engine, so before sending an alert they check a small shared file: whoever claims it
+ * first sends, the other stays quiet. Failures never disturb the alert itself.
+ */
+async function sendThroughChannels(item: AlertHistoryItem): Promise<void> {
+  const notify = getSdk().api.notify;
+  if (!notify) return;
+  try {
+    const key = `${item.ruleId}:${item.containerId ?? '-'}`;
+    await new Promise((r) => setTimeout(r, 100 + Math.random() * 600));
+    const f = await loadFile('alerts-sent');
+    const now = Date.now();
+    if (now - (f.sent[key] ?? 0) < 20000) return;
+    const sent = Object.fromEntries(Object.entries(f.sent).filter(([, at]) => now - at < 3600000));
+    sent[key] = now;
+    await saveFile('alerts-sent', { sent });
+    await notify({ title: item.title, body: item.detail, level: item.kind === 'disk' ? 'warn' : 'error', link: '/p/docker' });
+  } catch {
+    /* no channel, rate limit, or no access: the toast and the history still show the alert */
+  }
+}
+
+export interface ChannelTest {
+  channels: number;
+  delivered: number;
+  failed: number;
+}
+
+/** Sends a test message to the channels. Rejects with the daemon's message (for example the rate limit). */
+export async function sendTestNotification(): Promise<ChannelTest> {
+  const notify = getSdk().api.notify;
+  if (!notify) throw new Error('This Ervisio is too old for notification channels (needs 0.5).');
+  return notify({ title: t('alerts.test.title'), body: t('alerts.test.detail'), level: 'info', link: '/p/docker' });
 }
 
 /** A sample toast, not stored in the history. */

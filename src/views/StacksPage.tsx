@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { stackAction, type Stack } from '../api/compose';
 import { healthOf, isProblem } from '../api/model';
 import { t, tn } from '../i18n';
-import { Badge, Button, Chip, EmptyState, IconButton, Skeleton, toast } from '../kit';
+import { Badge, Button, Chip, DropdownMenu, EmptyState, IconButton, Skeleton, toast } from '../kit';
 import { navigate, useSearch } from '../router';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
@@ -49,7 +49,7 @@ export function StacksPage() {
       icon="layers"
       title={t('stacks.title')}
       subtitle={stacks.length ? tn('stacks.sub', { n: stacks.length, running }) : sources ? t('stacks.sub.none') : ''}
-      actions={<Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>}
+      actions={<NewStackMenu />}
     />
   );
 
@@ -75,7 +75,7 @@ export function StacksPage() {
           text={t('stacks.empty.text')}
           action={
             <div className="dk-ph-act" style={{ margin: 0 }}>
-              <Button variant="primary" icon="plus" onClick={() => navigate({ view: 'stack', name: '' })}>{t('stacks.new')}</Button>
+              <NewStackMenu />
               <Button icon="store" onClick={() => navigate({ view: 'templates' }, { root: true })}>{t('containers.empty.template')}</Button>
             </div>
           }
@@ -90,6 +90,20 @@ export function StacksPage() {
         </div>
       )}
     </>
+  );
+}
+
+/** "New stack": write one, or clone one from Git. */
+function NewStackMenu() {
+  return (
+    <DropdownMenu
+      aria-label={t('stacks.new')}
+      items={[
+        { id: 'write', label: t('stacks.new.write'), icon: 'edit', onSelect: () => navigate({ view: 'stack', name: '' }) },
+        { id: 'git', label: t('stacks.new.git'), icon: 'git', onSelect: () => navigate({ view: 'stack-git' }) },
+      ]}
+      trigger={(p) => <Button variant="primary" icon="plus" {...p}>{t('stacks.new')}</Button>}
+    />
   );
 }
 
@@ -108,6 +122,7 @@ function StackCard({ s, busy, onAction }: { s: Stack; busy: boolean; onAction(a:
           <b title={s.name}>{s.name}</b>
           <span className="dk-sk-path" title={s.dir}>{s.dir || '–'}</span>
         </div>
+        {s.git && <Badge tone="neutral">Git</Badge>}
         <Badge tone={s.managed ? 'ok' : 'info'}>{s.managed ? t('stacks.managed') : t('stacks.detected')}</Badge>
       </div>
       <div className="dk-sk-card-n">

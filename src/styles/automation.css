@@ -1,0 +1,48 @@
+/* Git stacks, jobs, webhooks, schedules. Theme variables only, no divider lines. */
+.dk-jb-p { margin: 0; line-height: 1.45; }
+.dk-jb-h { margin: 6px 0 0; font-size: 13px; font-weight: 800; }
+.dk-jb-mono { font: 600 12.5px var(--mono); }
+.dk-jb-subj { color: var(--ink2); overflow-wrap: anywhere; }
+.dk-jb-new { margin: 0; color: var(--acc); font-weight: 700; font-size: 13px; }
+.dk-jb-btns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dk-jb-form { display: flex; flex-direction: column; gap: 12px; }
+.dk-jb-warn { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--warn-s); color: var(--ink); font-size: 13px; }
+.dk-jb-warn > .ui-icon { color: var(--warn); flex: none; margin-top: 2px; }
+.dk-jb-warn b { font-weight: 800; }
+.dk-jb-warn p { margin: 2px 0 6px; color: var(--ink2); overflow-wrap: anywhere; }
+.dk-jb-facts { margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.dk-jb-facts > div { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.dk-jb-facts dt { width: 96px; flex: none; color: var(--ink3); font-weight: 700; font-size: 12.5px; }
+.dk-jb-facts dd { margin: 0; min-width: 0; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; overflow-wrap: anywhere; }
+.dk-jb-last { display: inline-flex; align-items: center; gap: 8px; }
+.dk-jb-hooks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.dk-jb-hooks li { display: flex; align-items: center; gap: 10px; background: var(--surface); border-radius: 12px; padding: 8px 10px; flex-wrap: wrap; }
+.dk-jb-hooks li > .ui-icon { color: var(--acc); flex: none; }
+.dk-jb-hooks li > div { flex: 1; min-width: 150px; display: flex; flex-direction: column; }
+.dk-jb-code { margin: 0; padding: 10px 12px; border-radius: 10px; background: #000; color: #d8dee9; font: 12px var(--mono); overflow-x: auto; white-space: pre-wrap; word-break: break-all; }
+.dk-jb-runs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.dk-jb-run { display: flex; align-items: center; gap: 8px; width: 100%; background: var(--surface); border: 0; border-radius: 10px; padding: 7px 10px; color: var(--ink); font: inherit; cursor: pointer; text-align: left; }
+.dk-jb-run b { font-weight: 700; font-size: 13px; }
+.dk-jb-run .ui-icon { margin-left: auto; width: 14px; height: 14px; color: var(--ink3); }
+.dk-jb-run .ui-badge, .dk-jb-run > span:nth-of-type(2) { margin-left: auto; }
+.dk-jb-run:focus-visible { outline: 2px solid var(--acc); }
+.dk-jb-steps { padding: 6px 4px 4px 12px; display: flex; flex-direction: column; gap: 6px; }
+.dk-jb-step { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12.5px; }
+.dk-jb-step pre { flex-basis: 100%; margin: 0; padding: 8px 10px; background: #000; color: #d8dee9; border-radius: 8px; font: 11.5px var(--mono); white-space: pre-wrap; word-break: break-word; max-height: 160px; overflow: auto; }
+.dk-jb-st { font: 700 12px var(--mono); padding: 1px 7px; border-radius: 7px; background: var(--ok-s); color: var(--ok); }
+.dk-jb-st--failed { background: var(--err-s); color: var(--err); }
+.dk-jb-st--skipped { background: var(--surface); color: var(--ink3); }
+.dk-jb-sched { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.dk-jb-days { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.dk-gn-form { display: flex; flex-direction: column; gap: 14px; max-width: 640px; }
+.dk-gn-auth { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.dk-gn-auth > * { max-width: 100%; }
+.dk-gn-auth .dk-fields, .dk-gn-auth .ui-field { width: 100%; }
+.dk-gn-l { font-weight: 700; font-size: 13px; }
+.dk-gn-ref { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+.dk-gn-ref > :first-child { flex: 1; min-width: 200px; }
+/* volumes: schedules */
+.dk-bk-list { display: flex; flex-direction: column; gap: 6px; }
+.dk-bk-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--surface); flex-wrap: wrap; }
+.dk-bk-row > div { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
+.dk-bk-row b { font-weight: 700; }

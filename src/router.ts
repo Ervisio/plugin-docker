@@ -34,6 +34,7 @@ export type Route =
   | { view: 'container'; id: string; tab?: 'overview' | 'logs' | 'stats' | 'shell' | 'attach' | 'files' | 'inspect' | 'settings' }
   | { view: 'stacks' }
   | { view: 'stack'; name: string }
+  | { view: 'stack-git' }
   | { view: 'create'; /** container id to edit (recreate with the same settings) */ from?: string; /** image to start from */ image?: string; /** values to start the form with (from a template) */ prefill?: CreatePrefill }
   | { view: 'templates' }
   | { view: 'template'; id: string }
@@ -62,6 +63,7 @@ export function sectionOf(r: Route): NavId {
     case 'build':
       return 'images';
     case 'stack':
+    case 'stack-git':
       return 'stacks';
     case 'template':
     case 'template-edit':

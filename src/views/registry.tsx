@@ -9,6 +9,7 @@ import { CreatePage } from './CreatePage';
 import { ImagesPage } from './ImagesPage';
 import { NetworksPage } from './NetworksPage';
 import { RegistriesPage } from './RegistriesPage';
+import { GitStackPage } from './GitStackPage';
 import { StackPage } from './StackPage';
 import { StacksPage } from './StacksPage';
 import { SettingsPage } from './SettingsPage';
@@ -28,6 +29,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <StacksPage />;
     case 'stack':
       return <StackPage name={route.name} />;
+    case 'stack-git':
+      return <GitStackPage />;
     case 'create':
       return <CreatePage from={route.from} image={route.image} prefill={route.prefill} />;
     case 'templates':
