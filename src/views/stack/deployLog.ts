@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { LineHandler } from '../../api/compose';
+import { currentEnv } from '../../api/environments';
 
 /** Output of the last command run on each stack. It lives in memory, so it survives navigating away and back. */
 export interface LogLine {
@@ -16,12 +17,14 @@ export interface DeployState {
 }
 
 const states = new Map<string, DeployState>();
+/** A stack name is only unique per environment. */
+const key = (name: string): string => `${currentEnv() ?? ''}/${name}`;
 const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 const MAX_LINES = 3000;
 
 export function getDeploy(name: string): DeployState | undefined {
-  return states.get(name);
+  return states.get(key(name));
 }
 
 export function useDeploy(name: string): DeployState | undefined {
@@ -30,14 +33,15 @@ export function useDeploy(name: string): DeployState | undefined {
       subs.add(f);
       return () => subs.delete(f);
     },
-    () => states.get(name),
+    () => states.get(key(name)),
   );
 }
 
 /** Run something that streams lines and returns an exit code; collect the lines under `name`. */
 export async function logged(name: string, title: string, run: (onLine: LineHandler) => Promise<number>): Promise<number> {
+  const k = key(name);
   let st: DeployState = { title, lines: [], running: true, code: null, at: Date.now() };
-  states.set(name, st);
+  states.set(k, st);
   emit();
   let pending: LogLine[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -47,7 +51,7 @@ export async function logged(name: string, title: string, run: (onLine: LineHand
     const lines = st.lines.concat(pending);
     pending = [];
     st = { ...st, lines: lines.length > MAX_LINES ? lines.slice(-MAX_LINES) : lines };
-    states.set(name, st);
+    states.set(k, st);
     emit();
   };
   const onLine: LineHandler = (stream, text) => {
@@ -64,7 +68,7 @@ export async function logged(name: string, title: string, run: (onLine: LineHand
   if (timer) clearTimeout(timer);
   flush();
   st = { ...st, running: false, code, at: Date.now() };
-  states.set(name, st);
+  states.set(k, st);
   emit();
   return code;
 }

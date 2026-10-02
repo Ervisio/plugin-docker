@@ -18,7 +18,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "exec",
           "-it",
           "-e",
@@ -28,7 +28,8 @@
         ],
         "description": "Open a shell inside a container",
         "name": "shell",
-        "pty": true
+        "pty": true,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -42,7 +43,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "attach",
           "--sig-proxy=false",
           "--detach-keys=ctrl-p,ctrl-q",
@@ -50,7 +51,8 @@
         ],
         "description": "Attach to the main process of a container (detach with Ctrl+P Ctrl+Q)",
         "name": "attach",
-        "pty": true
+        "pty": true,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -59,26 +61,31 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "up",
           "-d",
           "--remove-orphans"
         ],
         "description": "Create or update the containers of a stack",
         "name": "compose-up",
-        "timeoutSec": 600
+        "timeoutSec": 600,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -87,24 +94,29 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "pull"
         ],
         "description": "Pull the images of a stack",
         "name": "compose-pull",
-        "timeoutSec": 600
+        "timeoutSec": 600,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -113,25 +125,30 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "down",
           "--remove-orphans"
         ],
         "description": "Stop and remove the containers of a stack",
         "name": "compose-down",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -140,26 +157,31 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "down",
           "--remove-orphans",
           "--volumes"
         ],
         "description": "Stop and remove the containers and volumes of a stack",
         "name": "compose-down-volumes",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -168,24 +190,29 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "restart"
         ],
         "description": "Restart the containers of a stack",
         "name": "compose-restart",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -194,24 +221,29 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "stop"
         ],
         "description": "Stop the containers of a stack",
         "name": "compose-stop",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -220,24 +252,29 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "start"
         ],
         "description": "Start the containers of a stack",
         "name": "compose-start",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -246,24 +283,29 @@
           {
             "maxLen": 63,
             "pattern": "[a-z0-9][a-z0-9_-]{0,62}"
+          },
+          {
+            "maxLen": 32,
+            "pattern": "(\\.envs/env-[0-9a-f]{8}/)?"
           }
         ],
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
           "--project-directory",
-          "/opt/stacks/{0}",
+          "/opt/stacks/{1}{0}",
           "-f",
-          "/opt/stacks/{0}/compose.yaml",
+          "/opt/stacks/{1}{0}/compose.yaml",
           "config"
         ],
         "description": "Check a stack's compose file and show it fully resolved",
         "name": "compose-config",
-        "timeoutSec": 60
+        "timeoutSec": 60,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -277,7 +319,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
@@ -285,7 +327,8 @@
         ],
         "description": "Stop and remove the containers of a compose project, by project name",
         "name": "compose-p-down",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -299,7 +342,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
@@ -307,7 +350,8 @@
         ],
         "description": "Restart the containers of a compose project, by project name",
         "name": "compose-p-restart",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -321,7 +365,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
@@ -329,7 +373,8 @@
         ],
         "description": "Stop the containers of a compose project, by project name",
         "name": "compose-p-stop",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -343,7 +388,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
@@ -351,7 +396,8 @@
         ],
         "description": "Start the containers of a compose project, by project name",
         "name": "compose-p-start",
-        "timeoutSec": 300
+        "timeoutSec": 300,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -369,7 +415,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "--project-name",
           "{0}",
@@ -379,7 +425,8 @@
         ],
         "description": "Show a compose project outside /opt/stacks, fully resolved (read only)",
         "name": "compose-config-project",
-        "timeoutSec": 60
+        "timeoutSec": 60,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -387,7 +434,7 @@
         "argv": [
           "docker",
           "-H",
-          "unix:///var/run/docker.sock",
+          "{env}",
           "compose",
           "ls",
           "-a",
@@ -396,7 +443,8 @@
         ],
         "description": "List compose projects, including the ones not managed here",
         "name": "compose-ls",
-        "timeoutSec": 30
+        "timeoutSec": 30,
+        "remote": "docker"
       },
       {
         "admin": true,
@@ -642,7 +690,8 @@
           }
         ],
         "socket": "/var/run/docker.sock",
-        "timeoutSec": 120
+        "timeoutSec": 120,
+        "remote": "docker"
       }
     ],
     "network": [

@@ -1,4 +1,5 @@
 import type { Route } from '../router';
+import { ActivityPage } from './ActivityPage';
 import { AlertsPage } from './AlertsPage';
 import { AutoUpdatePage } from './AutoUpdatePage';
 import { BuildPage } from './BuildPage';
@@ -6,6 +7,7 @@ import { CleanupPage } from './CleanupPage';
 import { ContainerPage } from './ContainerPage';
 import { ContainersPage } from './ContainersPage';
 import { CreatePage } from './CreatePage';
+import { EnvironmentsPage } from './EnvironmentsPage';
 import { ImagesPage } from './ImagesPage';
 import { NetworksPage } from './NetworksPage';
 import { RegistriesPage } from './RegistriesPage';
@@ -20,6 +22,10 @@ import { VolumesPage } from './VolumesPage';
 /** Maps a route to its component. The shell renders this inside its content area. */
 export function ViewHost({ route }: { route: Route }) {
   switch (route.view) {
+    case 'environments':
+      return <EnvironmentsPage />;
+    case 'activity':
+      return <ActivityPage />;
     case 'containers':
       return <ContainersPage />;
     case 'container':

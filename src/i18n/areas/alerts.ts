@@ -89,6 +89,7 @@ const s: AreaStrings = {
     'alerts.fire.mem': '{name} uses a lot of memory',
     'alerts.fire.mem.d': '{pct}% now ({size}), above {limit}%.',
     'alerts.fire.disk': 'Docker uses a lot of disk',
+    'alerts.fire.on': '(on {env})',
     'alerts.fire.disk.d': '{size} used, above {limit} GB.',
   },
   it: {
@@ -179,6 +180,7 @@ const s: AreaStrings = {
     'alerts.fire.mem': '{name} usa molta memoria',
     'alerts.fire.mem.d': '{pct}% ora ({size}), sopra il {limit}%.',
     'alerts.fire.disk': 'Docker usa molto disco',
+    'alerts.fire.on': '(su {env})',
     'alerts.fire.disk.d': '{size} usati, sopra {limit} GB.',
   },
 };

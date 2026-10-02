@@ -1,0 +1,9 @@
+/* Activity page */
+.dk-act-filters { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; align-items: end; margin-bottom: 14px; }
+.dk-act-target { display: block; max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dk-nowrap { white-space: nowrap; }
+.dk-act-origin { font-size: 12px; }
+.dk-act-env { font-weight: 700; font-size: 12.5px; padding: 2px 8px; border-radius: 8px; background: var(--acc-s); color: var(--acc); white-space: nowrap; }
+.dk-act-env--local { background: var(--surface); color: var(--ink2); }
+.dk-act-more { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+@media (max-width: 760px) { .dk-act-target { max-width: 200px; } .dk-act-filters { grid-template-columns: 1fr 1fr; } }

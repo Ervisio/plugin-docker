@@ -1,5 +1,6 @@
 /** Stats math and the shared per-container stats streams. */
 import { docker, type StreamHandle } from './engine';
+import { onEnvChange } from './environments';
 import { JsonLines } from './streams';
 import type { StatPoint, StatsRaw } from './types';
 
@@ -125,10 +126,22 @@ export function subscribeStats(id: string, listener: () => void): () => void {
         entry.handle = undefined;
         open--;
       }
-      entries.delete(id);
+      if (entries.get(id) === entry) entries.delete(id);
     }
   };
 }
 
 export const statsHistory = (id: string): StatPoint[] => entries.get(id)?.history ?? [];
 export const statsLast = (id: string): StatPoint | undefined => entries.get(id)?.last;
+
+// Switching environment: the streams belong to the old host. Views resubscribe when they render again.
+onEnvChange(() => {
+  for (const e of entries.values()) {
+    clearTimeout(e.retry);
+    e.handle?.close();
+    e.handle = undefined;
+    e.listeners.clear();
+  }
+  entries.clear();
+  open = 0;
+});

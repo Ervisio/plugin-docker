@@ -7,7 +7,7 @@
 import { docker } from './engine';
 import { createResource } from './store';
 import type { Container, DiskUsage, ImageSummary, NetworkInfo, SystemInfo, VersionInfo, VolumeInfo } from './types';
-import { engineVersion } from './engine';
+import { engineVersionHere } from './engine';
 
 const typeIs = (...types: string[]) => (ev: { Type: string; Action: string }) =>
   (types.includes(ev.Type) && !ev.Action.startsWith('exec_') && ev.Action !== 'attach') || (ev.Type === 'system' && ev.Action === 'reconnect');
@@ -33,7 +33,7 @@ export const networks = createResource<NetworkInfo[]>(() => docker.get<NetworkIn
 });
 
 export const info = createResource<{ info: SystemInfo; version: VersionInfo }>(
-  async () => ({ info: await docker.get<SystemInfo>('/info'), version: await engineVersion() }),
+  async () => ({ info: await docker.get<SystemInfo>('/info'), version: await engineVersionHere() }),
   { intervalMs: 30000 },
 );
 

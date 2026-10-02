@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { deleteStack, deployStack, isValidStackName, moveFromOrigin, moveToManaged, planMove, projectConfig, readStack, resolveOrigin, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, STACKS_DIR, type OriginFiles, type Stack, type StackAction, type StackFiles } from '../api/compose';
+import { deleteStack, deployStack, isValidStackName, moveFromOrigin, moveToManaged, planMove, projectConfig, readStack, resolveOrigin, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, canManageStacks, stacksRoot, type OriginFiles, type Stack, type StackAction, type StackFiles } from '../api/compose';
 import { t } from '../i18n';
 import { Badge, Button, Card, Checkbox, DropdownMenu, EmptyState, Icon, Input, Skeleton, toast } from '../kit';
 import { back, navigate, type RouteProps } from '../router';
 import { getSdk } from '../sdk';
 import { ErrorState } from '../ui/ErrorState';
+import { StackWhere } from './stack/StackWhere';
+import { useEnv } from '../api/useEnv';
 import { PageHeader } from '../ui/PageHeader';
 import { CodeEditor, jumpToLine } from './stack/CodeEditor';
 import { Confirm } from './stack/Confirm';
@@ -279,6 +281,7 @@ function ManagedStack({ stack, reload }: { stack: Stack; reload(): Promise<void>
   return (
     <>
       {header}
+      <StackWhere />
       <div className="dk-sk-grid">
         <Card className="dk-sk-edcard">
           <div className="dk-sk-edh">
@@ -360,6 +363,7 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
   const alive = useAlive();
   const out = useDeploy(name);
   const running = !!out?.running || moving;
+  const { info } = useEnv();
 
   useEffect(() => {
     if (!file) { setCfg({ ok: false, text: t('stacks.detected.noFile') }); return; }
@@ -425,10 +429,11 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
             {up > 0 && <Button icon="stop" disabled={running} onClick={() => run('stop')}>{t('common.stop')}</Button>}
             <Button icon="refresh" disabled={running || !total} onClick={() => run('restart')}>{t('common.restart')}</Button>
             <Button icon="trash" disabled={running || !total} onClick={() => setConfirm('down')}>{t('stacks.down')}</Button>
-            <Button variant="primary" icon="download" loading={moving} disabled={running || !cfg?.ok} onClick={() => setConfirm('move')}>{t('stacks.move.button')}</Button>
+            {!info && <Button variant="primary" icon="download" loading={moving} disabled={running || !cfg?.ok} onClick={() => setConfirm('move')}>{t('stacks.move.button')}</Button>}
           </>
         }
       />
+      <StackWhere binds={false} />
       <div className="dk-sk-note">
         <Icon name="info" />
         <div>
@@ -459,7 +464,7 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
                 return <CodeEditor key={cur.path} value={cur.text} lang={otab === 0 ? 'yaml' : 'env'} readOnly label={cur.path.split('/').pop() ?? ''} />;
               })()}
             </>
-          ) : !cfg ? <Skeleton height={200} style={{ borderRadius: 14 }} /> : cfg.ok ? <CodeEditor value={cfg.text} lang="yaml" readOnly label={t('stacks.detected.config')} /> : <p className={file ? 'dk-sk-err' : 'dk-muted'}>{cfg.text}</p>}
+          ) : info && !cfg?.ok ? <p className="dk-muted">{t('envs.stack.noConfig', { env: info.name })}</p> : !cfg ? <Skeleton height={200} style={{ borderRadius: 14 }} /> : cfg.ok ? <CodeEditor value={cfg.text} lang="yaml" readOnly label={t('stacks.detected.config')} /> : <p className={file ? 'dk-sk-err' : 'dk-muted'}>{cfg.text}</p>}
           {stack.configFiles.length > 1 && <p className="dk-muted">{t('stacks.detected.multi', { file })}</p>}
         </Card>
         <div className="dk-sk-col">
@@ -532,16 +537,18 @@ function NewStack() {
     }
   };
 
-  const header = <PageHeader icon="layers" title={t('stacks.new.title')} subtitle={t('stacks.new.sub', { dir: STACKS_DIR })} back />;
+  const header = <PageHeader icon="layers" title={t('stacks.new.title')} subtitle={t('stacks.new.sub', { dir: stacksRoot() })} back />;
+  if (!canManageStacks()) return <>{header}<StackWhere /></>;
   if (sources && !sources.folder) return <>{header}<SetupCard onDone={() => void reload()} /></>;
 
   return (
     <>
       {header}
+      <StackWhere />
       <div className="dk-sk-new">
         <Card className="dk-sk-edcard">
           <div className="dk-sk-newname">
-            <Input label={t('stacks.new.name')} value={name} mono placeholder="my-app" error={nameErr} hint={nameErr ? undefined : t('stacks.new.nameHint', { dir: `${STACKS_DIR}/${name || '<name>'}` })} onChange={(e) => setName(e.target.value.toLowerCase())} maxLength={63} autoFocus />
+            <Input label={t('stacks.new.name')} value={name} mono placeholder="my-app" error={nameErr} hint={nameErr ? undefined : t('stacks.new.nameHint', { dir: `${stacksRoot()}/${name || '<name>'}` })} onChange={(e) => setName(e.target.value.toLowerCase())} maxLength={63} autoFocus />
           </div>
           <div className="dk-sk-edh">
             <Tabs3 tab={tab} onTab={setTab} diffCount={0} canDiff={false} />

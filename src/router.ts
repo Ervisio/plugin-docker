@@ -10,6 +10,7 @@
  * views/registry.tsx.
  */
 import { useSyncExternalStore } from 'react';
+import { setEnv } from './api/environments.ts';
 import type { Template } from './api/templateModel.ts';
 
 /** Starting values for the new container form; plain JSON so it can sit in a route. */
@@ -30,6 +31,8 @@ export interface CreatePrefill {
 }
 
 export type Route =
+  | { view: 'environments' }
+  | { view: 'activity' }
   | { view: 'containers' }
   | { view: 'container'; id: string; tab?: 'overview' | 'logs' | 'stats' | 'shell' | 'attach' | 'files' | 'inspect' | 'settings' }
   | { view: 'stacks' }
@@ -51,7 +54,7 @@ export type Route =
 export type View = Route['view'];
 
 /** Sidebar entries: each is a top-level route. */
-export type NavId = 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'settings';
+export type NavId = 'environments' | 'activity' | 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'settings';
 
 /** Which sidebar entry is lit for a route. */
 export function sectionOf(r: Route): NavId {
@@ -77,7 +80,19 @@ const subs = new Set<() => void>();
 const emit = () => subs.forEach((f) => f());
 const same = (a: Route, b: Route) => JSON.stringify(a) === JSON.stringify(b);
 
-export function navigate(route: Route, opts: { root?: boolean; replace?: boolean } = {}): void {
+/**
+ * A route that names its environment: `navigate({ view: 'container', id, env: 'env-1a2b3c4d' })` opens the container on
+ * that host (a link from the Environments page or from a notification). `env: ''` means this server. Without `env`
+ * the route opens in the environment that is already open.
+ */
+export type RouteTo = Route & { env?: string };
+
+export function navigate(to: RouteTo, opts: { root?: boolean; replace?: boolean } = {}): void {
+  const { env, ...route } = to as RouteTo;
+  if (env !== undefined) {
+    // Another host: nothing of the old one stays on the back stack.
+    if (setEnv(env || undefined)) opts = { ...opts, root: true };
+  }
   const cur = history[history.length - 1];
   if (opts.root) history = [route];
   else if (opts.replace) history = [...history.slice(0, -1), route];

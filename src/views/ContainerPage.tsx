@@ -10,6 +10,8 @@ import { back, navigate, type RouteProps } from '../router';
 import { ErrorState } from '../ui/ErrorState';
 import { stateTone } from '../ui/StatusDot';
 import { AttachTab } from './container/AttachTab';
+import { NoTerminal } from './container/NoTerminal';
+import { useEnv } from '../api/useEnv';
 import { CommitDialog } from './container/CommitDialog';
 import { FilesTab } from './container/FilesTab';
 import { InspectTab } from './container/InspectTab';
@@ -40,6 +42,7 @@ const TONES: Record<string, Tone> = { ok: 'ok', warn: 'warn', info: 'info', err:
 /** Container detail page (design 026 a): header with actions, then Overview / Logs / Stats / Shell / Inspect / Settings. */
 export function ContainerPage({ id, tab }: RouteProps<'container'>) {
   const { data: c, error, loading, reload } = useInspect(id);
+  const { caps, info: envInfo, multi } = useEnv();
   const [busy, setBusy] = useState<ContainerAction | null>(null);
   const [removing, setRemoving] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -116,6 +119,7 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
             {health && health !== 'none' && <Badge tone={unhealthy ? 'err' : health === 'healthy' ? 'ok' : 'warn'}>{t(`health.${health}`)}</Badge>}
           </h1>
           <p>
+            {multi && <b className="dk-ph-env">{envInfo?.name ?? t('envs.local')}</b>}
             <span className="dk-mono dk-c-ch-img" title={c.Config.Image}>{c.Config.Image.length > 60 ? shortImage(c.Config.Image) : c.Config.Image}</span>
             {stack && (
               <>
@@ -156,12 +160,12 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
       {active === 'stats' && <StatsTab id={c.Id} inspect={c} running={running} />}
       {visited.has('shell') && (
         <div hidden={active !== 'shell'}>
-          <ShellTab id={c.Id} running={running} visible={active === 'shell'} onStart={() => act('start')} />
+          {!caps.terminal ? <NoTerminal what="shell" /> : <ShellTab id={c.Id} running={running} visible={active === 'shell'} onStart={() => act('start')} />}
         </div>
       )}
       {visited.has('attach') && (
         <div hidden={active !== 'attach'}>
-          <AttachTab id={c.Id} running={running} visible={active === 'attach'} onStart={() => act('start')} openStdin={!!c.Config.OpenStdin} tty={!!c.Config.Tty} />
+          {!caps.terminal ? <NoTerminal what="attach" /> : <AttachTab id={c.Id} running={running} visible={active === 'attach'} onStart={() => act('start')} openStdin={!!c.Config.OpenStdin} tty={!!c.Config.Tty} />}
         </div>
       )}
       {active === 'files' && <FilesTab id={c.Id} running={running} />}

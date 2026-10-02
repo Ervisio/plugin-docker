@@ -4,6 +4,7 @@
  */
 import { useSyncExternalStore } from 'react';
 import { docker } from '../../api/engine';
+import { onEnvChange } from '../../api/environments';
 import { registryAuthFor } from '../../api/registries';
 import type { ImageSummary } from '../../api/types';
 import { realTags, refPath } from './imageRef';
@@ -94,3 +95,10 @@ export async function recheck(ref: string, img: ImageSummary): Promise<void> {
   pending.delete(ref);
   bump();
 }
+
+// Digests were compared with this host's local images: start again on another host.
+onEnvChange(() => {
+  cache.clear();
+  pending.clear();
+  bump();
+});

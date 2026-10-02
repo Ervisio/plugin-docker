@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { containers } from '../api/resources';
 import { composeOf, containerPrefill, CUSTOM_ID, envText, slug, substitute, useTemplates, type Template } from '../api/templates';
-import { deployStack, isValidStackName, readStack, writeStack } from '../api/compose';
+import { useEnv } from '../api/useEnv';
+import { canManageStacks, deployStack, isValidStackName, readStack, writeStack } from '../api/compose';
 import { TEMPLATES_DIR } from '../api/customTemplates';
 import { maskedText } from '../api/dotenv';
 import { COMPOSE_PROJECT } from '../api/types';
@@ -66,6 +67,7 @@ function App({ tpl }: { tpl: Template }) {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
   }, [lines]);
 
+  const { info } = useEnv();
   const installed = isInstalled(tpl, list);
   const needs = tpl.needs;
 
@@ -199,7 +201,7 @@ function App({ tpl }: { tpl: Template }) {
               {showSpec && tpl.type === 'stack' && envPrev && <><h4>{t('templates.envPreview')}</h4><pre className="dk-cr-run">{envPrev}</pre><p className="dk-muted">{t('templates.envPreviewNote')}</p></>}
               <div className="dk-tp-go">
                 <Button icon="code" onClick={() => void preview()}>{showSpec ? t('templates.hideSpec') : tpl.type === 'stack' ? t('templates.showCompose') : t('templates.showRun')}</Button>
-                <Button variant="primary" icon="download" onClick={() => void install()} disabled={tpl.type === 'stack' && !tpl.compose && !tpl.composeUrl}>{tpl.type === 'stack' ? t('templates.deploy') : t('templates.continue')}</Button>
+                <Button variant="primary" icon="download" onClick={() => void install()} disabled={tpl.type === 'stack' && (!canManageStacks() || (!tpl.compose && !tpl.composeUrl))} title={tpl.type === 'stack' && !canManageStacks() ? t('envs.stack.newOff', { env: info?.name ?? '' }) : undefined}>{tpl.type === 'stack' ? t('templates.deploy') : t('templates.continue')}</Button>
               </div>
             </>
           )}

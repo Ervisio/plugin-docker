@@ -1,5 +1,6 @@
 /** One shared /events stream, opened while at least one listener exists. Reconnects with a growing delay. */
 import { docker, type StreamHandle } from './engine';
+import { onEnvChange } from './environments';
 import { JsonLines } from './streams';
 import type { DockerEvent } from './types';
 
@@ -48,3 +49,14 @@ export function subscribeEvents(fn: Listener): () => void {
     }
   };
 }
+
+// Another host has its own event clock: close the stream, forget the position and open a new one for whoever listens.
+onEnvChange(() => {
+  clearTimeout(retry);
+  const old = handle;
+  handle = undefined;
+  old?.close();
+  failures = 0;
+  lastTime = 0;
+  connect();
+});

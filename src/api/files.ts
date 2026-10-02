@@ -116,6 +116,8 @@ export interface ExecResult {
 export async function execRun(id: string, cmd: string[]): Promise<ExecResult> {
   const created = await docker.post<{ Id: string }>(`/containers/${enc(id)}/exec`, undefined, { AttachStdout: true, AttachStderr: true, Tty: false, Cmd: cmd });
   const r = await docker.request('POST', `/exec/${created.Id}/start`, { body: { Detach: false, Tty: false } });
+  // The Portainer agent drops upgraded connections and the core answers 501: same as a container without a shell.
+  if (r.status === 501) throw new FsError('noexec', 'This environment cannot run commands in containers');
   if (r.status >= 400) {
     let msg = r.body;
     try {

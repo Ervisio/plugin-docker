@@ -5,10 +5,12 @@
  */
 export type {
   ExecResult,
+  AuditEntry,
   FileEntry,
   HttpRequest,
   HttpResponse,
   HttpStreamHandlers,
+  PluginEnv,
   PluginError,
   PluginSDK,
   PtyOptions,
