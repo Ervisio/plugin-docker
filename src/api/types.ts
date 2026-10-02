@@ -70,7 +70,7 @@ export interface ContainerInspect {
   Mounts: { Type: string; Name?: string; Source: string; Destination: string; Mode?: string; RW: boolean }[];
   NetworkSettings: {
     Ports?: Record<string, { HostIp: string; HostPort: string }[] | null>;
-    Networks?: Record<string, { IPAddress: string; Gateway: string; MacAddress: string; Aliases?: string[] | null }>;
+    Networks?: Record<string, { NetworkID?: string; IPAddress: string; Gateway: string; MacAddress: string; Aliases?: string[] | null }>;
   };
 }
 
@@ -196,3 +196,4 @@ export const COMPOSE_PROJECT = 'com.docker.compose.project';
 export const COMPOSE_SERVICE = 'com.docker.compose.service';
 export const COMPOSE_WORKDIR = 'com.docker.compose.project.working_dir';
 export const COMPOSE_FILES = 'com.docker.compose.project.config_files';
+export const COMPOSE_ENV_FILE = 'com.docker.compose.project.environment_file';

@@ -123,3 +123,10 @@
 .dk-ph-tx:has(.dk-sk-path) { min-width: 0; flex: 1 1 240px; }
 .dk-ph-tx:has(.dk-sk-path) h1 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .dk-ph-tx:has(.dk-sk-path) h1 .ui-badge { font-size: 12px; }
+
+/* Move dialog for projects held by another container, and their read-only files */
+.dk-sk-mv { display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; color: var(--ink2); max-height: 52vh; overflow: auto; }
+.dk-sk-mv p { margin: 6px 0 0; }
+.dk-sk-mv ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.dk-sk-mv code { font: 500 12px var(--mono); color: var(--ink); overflow-wrap: anywhere; }
+.dk-sk-origin-tabs { margin-bottom: 8px; }

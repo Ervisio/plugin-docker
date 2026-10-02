@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { deleteStack, deployStack, isValidStackName, moveToManaged, projectConfig, readStack, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, STACKS_DIR, type Stack, type StackAction, type StackFiles } from '../api/compose';
+import { deleteStack, deployStack, isValidStackName, moveFromOrigin, moveToManaged, planMove, projectConfig, readStack, resolveOrigin, serviceNamesOf, servicesOf, stackAction, stackDir, writeStack, COMPOSE_FILE, DEPLOYED_FILE, STACKS_DIR, type OriginFiles, type Stack, type StackAction, type StackFiles } from '../api/compose';
 import { t } from '../i18n';
 import { Badge, Button, Card, Checkbox, DropdownMenu, EmptyState, Icon, Input, Skeleton, toast } from '../kit';
 import { back, navigate, type RouteProps } from '../router';
@@ -12,6 +12,7 @@ import { DeployOutput } from './stack/DeployCard';
 import { useDeploy, logged } from './stack/deployLog';
 import { DiffView } from './stack/DiffView';
 import { diffLines, summarize } from './stack/diff';
+import { MovePreview } from './stack/MovePreview';
 import { ServicesCard } from './stack/ServicesCard';
 import { SetupCard } from './stack/SetupCard';
 import { useStacks } from './stack/useStacks';
@@ -332,6 +333,8 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
   const { name } = stack;
   const file = stack.configFiles[0];
   const [cfg, setCfg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [origin, setOrigin] = useState<OriginFiles | null>(null);
+  const [otab, setOtab] = useState(0);
   const [moving, setMoving] = useState(false);
   const [confirm, setConfirm] = useState<'down' | 'move' | null>(null);
   const alive = useAlive();
@@ -341,8 +344,23 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
   useEffect(() => {
     if (!file) { setCfg({ ok: false, text: t('stacks.detected.noFile') }); return; }
     setCfg(null);
-    void projectConfig(name, file).then((c) => alive.current && setCfg(c)).catch((e) => alive.current && setCfg({ ok: false, text: (e as Error).message }));
+    setOrigin(null);
+    // Files on this machine are resolved by `docker compose config`. When that fails, they may live in another
+    // container (Portainer's volume): then they are read through the Docker API instead.
+    void projectConfig(name, file)
+      .catch((e) => ({ ok: false, text: (e as Error).message }))
+      .then(async (c) => {
+        if (!alive.current) return;
+        if (!c.ok) {
+          const o = await resolveOrigin(stack).catch(() => null);
+          if (!alive.current) return;
+          if (o) { setOrigin(o); setCfg({ ok: true, text: o.compose }); return; }
+        }
+        setCfg(c);
+      });
   }, [name, file, alive]);
+
+  const plan = useMemo(() => (origin ? planMove(name, origin, stack.containers) : null), [name, origin, stack.containers]);
 
   const services = useMemo(() => servicesOf(stack.containers), [stack.containers]);
   const images = useMemo(() => ({}), []);
@@ -361,7 +379,8 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
     if (!file) return;
     setMoving(true);
     try {
-      await moveToManaged(name, file);
+      if (plan) await moveFromOrigin(name, plan);
+      else await moveToManaged(name, file);
       toast.ok(t('stacks.move.done', { name }));
       await reload();
     } catch (e) {
@@ -390,10 +409,37 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
           </>
         }
       />
-      <div className="dk-sk-note"><Icon name="info" /><div><b>{t('stacks.detected.title')}</b><p>{stack.dir ? t('stacks.detected.text', { dir: stack.dir }) : t('stacks.detected.textNoDir')}</p></div></div>
+      <div className="dk-sk-note">
+        <Icon name="info" />
+        <div>
+          {origin ? (
+            <>
+              <b>{origin.origin.kind === 'portainer' ? (origin.origin.stackId !== undefined ? t('stacks.origin.portainer.title', { id: origin.origin.stackId }) : t('stacks.origin.portainer.titleNoId')) : t('stacks.origin.container.title', { container: origin.origin.container })}</b>
+              <p>{origin.origin.volume ? t('stacks.origin.text.volume', { volume: origin.origin.volume, container: origin.origin.container }) : t('stacks.origin.text.dir', { dir: origin.origin.dir, container: origin.origin.container })}{origin.origin.hostPath && !origin.origin.volume ? ' ' + t('stacks.origin.text.host', { path: origin.origin.hostPath }) : ''} {t('stacks.origin.text.actions')}</p>
+            </>
+          ) : (
+            <>
+              <b>{t('stacks.detected.title')}</b>
+              <p>{stack.dir ? t('stacks.detected.text', { dir: stack.dir }) : t('stacks.detected.textNoDir')}</p>
+            </>
+          )}
+        </div>
+      </div>
       <div className="dk-sk-grid">
-        <Card className="dk-sk-edcard" title={t('stacks.detected.config')}>
-          {!cfg ? <Skeleton height={200} style={{ borderRadius: 14 }} /> : cfg.ok ? <CodeEditor value={cfg.text} lang="yaml" readOnly label={t('stacks.detected.config')} /> : <p className={file ? 'dk-sk-err' : 'dk-muted'}>{cfg.text}</p>}
+        <Card className="dk-sk-edcard" title={origin ? t('stacks.origin.files') : t('stacks.detected.config')}>
+          {origin ? (
+            <>
+              <div className="dk-sk-tabs dk-sk-origin-tabs" role="tablist">
+                {[origin.composeFile, ...origin.env.map((e) => e.path)].map((p, i) => (
+                  <button type="button" key={p} role="tab" aria-selected={otab === i} className={otab === i ? 'on' : ''} onClick={() => setOtab(i)}>{p.split('/').pop()}</button>
+                ))}
+              </div>
+              {(() => {
+                const cur = otab === 0 ? { path: origin.composeFile, text: origin.compose } : origin.env[otab - 1] ?? { path: origin.composeFile, text: origin.compose };
+                return <CodeEditor key={cur.path} value={cur.text} lang={otab === 0 ? 'yaml' : 'env'} readOnly label={cur.path.split('/').pop() ?? ''} />;
+              })()}
+            </>
+          ) : !cfg ? <Skeleton height={200} style={{ borderRadius: 14 }} /> : cfg.ok ? <CodeEditor value={cfg.text} lang="yaml" readOnly label={t('stacks.detected.config')} /> : <p className={file ? 'dk-sk-err' : 'dk-muted'}>{cfg.text}</p>}
           {stack.configFiles.length > 1 && <p className="dk-muted">{t('stacks.detected.multi', { file })}</p>}
         </Card>
         <div className="dk-sk-col">
@@ -415,11 +461,13 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
         onClose={() => setConfirm(null)}
         onConfirm={() => { setConfirm(null); void move(); }}
         title={t('stacks.move.title', { name })}
-        description={t('stacks.move.text', { dir: stackDir(name), orig: stack.dir || file || '?' })}
+        description={plan ? t('stacks.move.textOrigin', { dir: stackDir(name), orig: origin?.origin.container ?? '' }) : t('stacks.move.text', { dir: stackDir(name), orig: stack.dir || file || '?' })}
         confirmLabel={t('stacks.move.confirm')}
         danger={false}
         icon="download"
-      />
+      >
+        {plan && origin && <MovePreview plan={plan} dir={stackDir(name)} fromPortainer={origin.origin.kind === 'portainer'} />}
+      </Confirm>
     </>
   );
 }

@@ -465,7 +465,7 @@
             "methods": [
               "GET"
             ],
-            "path": "/v1\\.[0-9]+/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}/(json|logs|stats|top|changes)"
+            "path": "/v1\\.[0-9]+/containers/[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}/(json|logs|stats|top|changes|archive)"
           },
           {
             "methods": [

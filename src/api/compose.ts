@@ -9,8 +9,9 @@
  */
 import { parse } from 'yaml';
 import { getSdk, type PluginError } from '../sdk';
-import { docker } from './engine';
-import { COMPOSE_FILES, COMPOSE_PROJECT, COMPOSE_SERVICE, COMPOSE_WORKDIR, type Container } from './types';
+import { DockerError, docker } from './engine';
+import { envFileNames, originCandidates, originOf, parseTar, rewriteBinds, type BindChange, type BindWarning, type Origin } from './origin';
+import { COMPOSE_FILES, COMPOSE_PROJECT, COMPOSE_SERVICE, COMPOSE_WORKDIR, COMPOSE_ENV_FILE, type Container } from './types';
 
 export const STACKS_DIR = '/opt/stacks';
 export const STACK_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
@@ -341,6 +342,101 @@ export async function moveToManaged(name: string, file: string): Promise<void> {
   const cfg = await projectConfig(name, file);
   if (!cfg.ok) throw new Error(cfg.text || 'docker compose config failed');
   await writeStack(name, cfg.text, '');
+}
+
+/* ---------- projects whose files live in another container (Portainer and the like) ---------- */
+
+export interface OriginFiles {
+  origin: Origin;
+  /** Path of the compose file inside that container, and its text. */
+  composeFile: string;
+  compose: string;
+  /** Environment files found, with their path inside the container. */
+  env: { path: string; text: string }[];
+  /** Files the compose file reads next to it (relative env_file entries), by relative path. */
+  extra: { path: string; text: string }[];
+}
+
+/** One file of a container through GET /containers/{id}/archive, or null when it is not there. */
+export async function readContainerFile(containerId: string, path: string): Promise<string | null> {
+  const r = await docker.request('GET', `/containers/${containerId}/archive`, { query: { path } });
+  if (r.status === 404) return null;
+  if (r.status >= 400) throw new DockerError(r.status, `Docker answered ${r.status}`);
+  const files = parseTar(r.bytes());
+  return files.length ? new TextDecoder().decode(files[0].data) : null;
+}
+
+/**
+ * Find out where a detected project's files really are. Resolves with null when they are on this machine (or nobody
+ * has them): the caller then keeps the normal read-only view. Otherwise it reads the compose file and the env files
+ * from the container that mounts the working directory.
+ */
+export async function resolveOrigin(stack: Stack): Promise<OriginFiles | null> {
+  const file = stack.configFiles[0];
+  const dir = stack.dir;
+  if (!file || !dir) return null;
+  const list = await docker.get<Container[]>('/containers/json', { all: '1' });
+  for (const cand of originCandidates(file, stack.name, list)) {
+    let compose: string | null;
+    try {
+      compose = await readContainerFile(cand.container.Id, file);
+    } catch {
+      continue;
+    }
+    if (compose === null) continue;
+    const label = stack.containers[0]?.Labels?.[COMPOSE_ENV_FILE];
+    const names = envFileNames(label, dir);
+    const env: OriginFiles['env'] = [];
+    for (const path of names) {
+      const text = await readContainerFile(cand.container.Id, path).catch(() => null);
+      if (text !== null) env.push({ path, text });
+      if (!label && env.length) break;
+    }
+    const extra: OriginFiles['extra'] = [];
+    try {
+      for (const rel of rewriteBinds(compose, dir, stack.containers).envFiles) {
+        if (names.some((n) => n === `${dir}/${rel}`)) continue;
+        const text = await readContainerFile(cand.container.Id, `${dir}/${rel}`).catch(() => null);
+        if (text !== null) extra.push({ path: rel, text });
+      }
+    } catch {
+      /* a file that does not parse is shown as it is */
+    }
+    return { origin: originOf(cand, dir), composeFile: file, compose, env, extra };
+  }
+  return null;
+}
+
+export interface MovePlan {
+  compose: string;
+  env: string;
+  /** Files that will be written, relative to /opt/stacks/<name>. */
+  files: string[];
+  changes: BindChange[];
+  warnings: BindWarning[];
+  extra: { path: string; text: string }[];
+}
+
+/** What moving a project out of another container writes: the compose file with absolute bind sources, and the env. */
+export function planMove(name: string, of: OriginFiles, containers: Container[]): MovePlan {
+  const r = rewriteBinds(of.compose, of.origin.dir, containers);
+  const env = of.env.map((e) => e.text.replace(/\n*$/, '\n')).join('\n');
+  const files = [COMPOSE_FILE, ...(env.trim() ? [ENV_FILE] : []), ...of.extra.map((e) => e.path)];
+  return { compose: r.text, env: env.trim() ? env : '', files, changes: r.changes, warnings: r.warnings, extra: of.extra };
+}
+
+/** Write a plan into /opt/stacks/<name>. The original files and the containers are not touched. */
+export async function moveFromOrigin(name: string, plan: MovePlan): Promise<void> {
+  await writeStack(name, plan.compose, plan.env || undefined);
+  for (const f of plan.extra) {
+    const parts = f.path.split('/').slice(0, -1);
+    let dir = stackDir(name);
+    for (const p of parts) {
+      dir += `/${p}`;
+      await fsx.mkdir(dir).catch(() => undefined);
+    }
+    await fsx.write(`${stackDir(name)}/${f.path}`, f.text);
+  }
 }
 
 async function removeTree(path: string, depth = 0): Promise<void> {
