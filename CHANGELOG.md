@@ -2,7 +2,7 @@
 
 ## 2.2.0
 
-Draft, 2026-10-03. Needs Ervisio 0.5 or later (`minCore` is 0.5.0).
+2026-10-02. Needs Ervisio 0.5 or later (`minCore` is 0.5.0).
 
 ### Containers
 
