@@ -142,7 +142,7 @@ export function ContainerPage({ id, tab }: RouteProps<'container'>) {
         ))}
       </div>
 
-      {active === 'overview' && <Overview id={c.Id} inspect={c} running={running} />}
+      {active === 'overview' && <Overview id={c.Id} inspect={c} running={running} onChanged={reload} />}
       {active === 'logs' && <LogsTab id={c.Id} name={name} tty={!!c.Config.Tty} running={running} />}
       {active === 'stats' && <StatsTab id={c.Id} inspect={c} running={running} />}
       {visited.has('shell') && (

@@ -169,3 +169,4 @@
   .dk-c-lg-key { margin-left: 0; }
 }
 @media (prefers-reduced-motion: reduce) { .dk-c-fold summary > .ui-icon, .dk-c-j-ch { transition: none; } }
+.dk-c-nets { display: flex; flex-direction: column; gap: 6px; }

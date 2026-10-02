@@ -6,6 +6,7 @@ import { t, tn } from '../../i18n';
 import { Badge, IconButton, Icon, toast } from '../../kit';
 import { openUrl } from '../../ui/openUrl';
 import { LiveCharts } from './LiveCharts';
+import { NetworksCard } from './Networks';
 import { copyText, looksSecret, useNow } from './util';
 
 const fmtDate = (iso: string): string => {
@@ -15,7 +16,7 @@ const fmtDate = (iso: string): string => {
 
 const joinCmd = (a?: string[] | null): string => (a && a.length ? a.map((x) => (/\s/.test(x) ? JSON.stringify(x) : x)).join(' ') : '');
 
-export function Overview({ id, inspect, running }: { id: string; inspect: ContainerInspect; running: boolean }) {
+export function Overview({ id, inspect, running, onChanged }: { id: string; inspect: ContainerInspect; running: boolean; onChanged(): void }) {
   return (
     <div className="dk-c-ov">
       <LiveCharts id={id} running={running} inspect={inspect} height={70} />
@@ -28,7 +29,7 @@ export function Overview({ id, inspect, running }: { id: string; inspect: Contai
       </div>
       <Env inspect={inspect} />
       <div className="dk-c-two">
-        <Networks inspect={inspect} />
+        <NetworksCard inspect={inspect} onChanged={onChanged} />
         <Labels inspect={inspect} />
       </div>
     </div>
@@ -175,23 +176,6 @@ function Env({ inspect: c }: { inspect: ContainerInspect }) {
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function Networks({ inspect: c }: { inspect: ContainerInspect }) {
-  const nets = Object.entries(c.NetworkSettings.Networks ?? {});
-  return (
-    <div className="dk-card">
-      <h3>{t('container.networks')}</h3>
-      {nets.length === 0 ? <p className="dk-muted">{t('container.networksNone')}</p> : nets.map(([name, n]) => (
-        <div key={name} className="dk-c-row dk-c-row--wrap">
-          <b>{name}</b>
-          <span className="dk-mono">{n.IPAddress || '–'}</span>
-          {n.Gateway && <span className="dk-muted">{t('container.gateway', { ip: n.Gateway })}</span>}
-          {n.MacAddress && <span className="dk-muted dk-c-row-end dk-mono">{n.MacAddress}</span>}
-        </div>
-      ))}
     </div>
   );
 }
