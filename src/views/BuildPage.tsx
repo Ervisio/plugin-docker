@@ -6,8 +6,8 @@ import { Button, Checkbox, Icon, Input, Segmented, Textarea, toast } from '../ki
 import { navigate } from '../router';
 import { PageHeader } from '../ui/PageHeader';
 import { BuildOutput } from './build/BuildOutput';
-import { MAX_CONTEXT, MAX_RAW_CONTEXT, parsePairs, runBuild, type BuildOptions, type BuildSource, type BuildState } from './build/build';
-import { gzip, packPicked, packTar, pickedFrom, type Picked } from './build/tar';
+import { GZIP_LIMIT, parsePairs, runBuild, type BuildOptions, type BuildSource, type BuildState } from './build/build';
+import { packPicked, packTar, pickedFrom, type Picked } from './build/tar';
 import { jumpToLine, CodeEditor } from './stack/CodeEditor';
 import type { Issue } from './stack/validate';
 import { isValidRef } from './resources/imageRef';
@@ -96,12 +96,8 @@ export function BuildPage() {
       } else if (source === 'upload') {
         if (!upload) return setFormError(t('build.noContext'));
         if (upload.kind === 'files' && !upload.picked.some((p) => p.path === opts.dockerfile)) return setFormError(t('build.noDockerfile', { path: opts.dockerfile }));
-        if (upload.kind === 'files' && size > MAX_RAW_CONTEXT) return setFormError(t('build.tooBig', { size: formatBytes(size), max: formatBytes(MAX_CONTEXT) }));
-        let tar = upload.kind === 'archive' ? new Uint8Array(await upload.file.arrayBuffer()) : await packPicked(upload.picked);
-        // Plain tar contexts are compressed: source trees shrink a lot, and Docker detects gzip by itself.
-        if (upload.kind === 'files' || (tar[0] !== 0x1f && tar.length > 4096)) tar = await gzip(tar);
-        if (tar.length > MAX_CONTEXT) return setFormError(t('build.tooBig', { size: formatBytes(tar.length), max: formatBytes(MAX_CONTEXT) }));
-        src = { kind: 'tar', tar };
+        // Nothing is read into memory: an archive goes out as the File itself, picked files as one Blob of tar parts.
+        src = { kind: 'blob', blob: upload.kind === 'archive' ? upload.file : await packPicked(upload.picked, GZIP_LIMIT) };
       } else {
         if (!dockerfile.trim()) return setFormError(t('build.emptyDockerfile'));
         src = { kind: 'tar', tar: packTar([{ path: 'Dockerfile', data: new TextEncoder().encode(dockerfile) }]) };
@@ -170,7 +166,7 @@ export function BuildPage() {
               <input ref={(el) => { folder.current = el; el?.setAttribute('webkitdirectory', ''); }} type="file" hidden multiple onChange={(e) => pick(e, 'folder')} />
             </div>
             {upload ? (
-              <div className={`dk-bd-sel${size > (upload.kind === 'archive' ? MAX_CONTEXT : MAX_RAW_CONTEXT) ? ' dk-bd-sel--bad' : ''}`}>
+              <div className="dk-bd-sel">
                 <Icon name={upload.kind === 'archive' ? 'archive' : 'file'} />
                 <span className="dk-bd-selname">
                   {upload.kind === 'archive' ? upload.file.name : tn('build.filesCount', { n: upload.picked.length })}
@@ -187,7 +183,7 @@ export function BuildPage() {
                 {upload.picked.length > 40 && <li className="dk-muted">{t('build.more', { n: upload.picked.length - 40 })}</li>}
               </ul>
             )}
-            <p className="dk-note"><Icon name="info" />{t('build.limitNote', { max: formatBytes(MAX_CONTEXT) })}</p>
+            <p className="dk-note"><Icon name="info" />{t('build.limitNote', { max: formatBytes(GZIP_LIMIT, 0) })}</p>
           </>
         )}
         {source === 'git' && (

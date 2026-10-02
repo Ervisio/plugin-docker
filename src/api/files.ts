@@ -2,23 +2,18 @@
  * Files inside a container, through the Engine API only (no shell needed on the host):
  *   list      exec `ls -la --full-time` when the container runs and has ls; otherwise GET /archive of the folder
  *             and read the tar headers (works on stopped containers and on images without a shell)
- *   download  GET /archive of one file, unpacked from its tar
- *   upload    PUT /archive with a tar built here
+ *   download  GET /archive: a file up to SAVE_LIMIT is unpacked here and saved with saveFile; anything else
+ *             (folders, bigger files) is streamed to disk as the tar by api.download, with no size limit
+ *   upload    PUT /archive with a tar Blob built around the picked File (never read into memory) by api.upload
  *   mkdir     PUT /archive with a folder entry
  *   remove    exec `rm -rf` (needs a running container with rm)
- * The Engine caps every answer and request at the manifest's maxBody (8 MB), so files are limited to FILE_LIMIT.
+ * Only listing a folder of a stopped container (no ls) reads a whole answer into memory, capped by maxBody.
  */
 import { listTar, parseTar } from './origin';
-import { writeTar } from './tar';
-import { docker, DockerError } from './engine';
+import { tarBlob } from './tar';
+import { docker, DockerError, engineMessage } from './engine';
+import { getSdk } from '../sdk';
 
-/** The http capability allows 8 MiB per body; the tar framing takes a few KB of that. */
-export const FILE_LIMIT = 8 * 1024 * 1024 - 64 * 1024;
-/**
- * The core takes one RPC request body of at most 1 MiB, and a binary body travels as base64 (4/3 larger) inside JSON,
- * so a tar of about 780 KB is the most one PUT can carry. Core 0.5 streams uploads and this can then follow FILE_LIMIT.
- */
-export const UPLOAD_LIMIT = 780_000;
 /** Most entries shown for one folder. */
 export const LIST_LIMIT = 5000;
 
@@ -239,12 +234,46 @@ export async function listDir(id: string, path: string, canExec: boolean): Promi
 
 /* ---------- download, upload, folders, delete ---------- */
 
-/** The bytes of one regular file (at most FILE_LIMIT; the caller checks the listed size first). */
-export async function readFile(id: string, path: string): Promise<Uint8Array> {
-  const bytes = await archiveGet(id, path);
+/** Files up to this size are read in the browser, taken out of their tar and saved with their own name. */
+export const SAVE_LIMIT = 64 * 1024 * 1024;
+/** Files up to this size can be shown in the viewer. */
+export const PREVIEW_LIMIT = 8 * 1024 * 1024;
+
+/**
+ * The bytes of one regular file, through a streamed GET /archive (so the 8 MiB limit of api.http does not apply).
+ * Throws FsError('toolarge') when the file is over `limit`.
+ */
+export async function readFile(id: string, path: string, limit = SAVE_LIMIT): Promise<Uint8Array> {
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  await new Promise<void>((resolve, reject) => {
+    let handle: { close(): void } | undefined;
+    let over = false;
+    handle = docker.stream('GET', `/containers/${enc(id)}/archive`, { query: { path } }, {
+      onData: (c) => {
+        if (over) return;
+        total += c.length;
+        if (total > limit + 64 * 1024) {
+          over = true;
+          handle?.close();
+          reject(new FsError('toolarge', 'The file is too large to open here'));
+          return;
+        }
+        chunks.push(c);
+      },
+      onEnd: () => resolve(),
+      onError: (e) => reject(archiveError(e, 'Docker could not read the file')),
+    });
+  });
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.length;
+  }
   let files;
   try {
-    files = parseTar(bytes, FILE_LIMIT + 1024, 4);
+    files = parseTar(bytes, limit, 4);
   } catch (e) {
     throw new FsError('toolarge', (e as Error).message);
   }
@@ -252,30 +281,64 @@ export async function readFile(id: string, path: string): Promise<Uint8Array> {
   return files[0].data;
 }
 
-export async function writeFile(id: string, dir: string, name: string, data: Uint8Array): Promise<void> {
-  if (data.length > UPLOAD_LIMIT) throw new FsError('toolarge', 'The file is too large');
-  await put(id, dir, writeTar([{ name, data }]));
+export type Saved = { kind: 'file' | 'tar'; filename: string; size?: number };
+
+/**
+ * Saves a file of the container through the browser. Up to SAVE_LIMIT it is taken out of its tar here and saved under
+ * its own name; a bigger one (any size) is streamed to disk as the tar the Engine sends, named "<name>.tar".
+ */
+export async function saveFileOf(id: string, path: string, name: string, size: number, known?: Uint8Array): Promise<Saved> {
+  try {
+    if (known || size <= SAVE_LIMIT) {
+      const data = known ?? (await readFile(id, path));
+      const r = await getSdk().saveFile(name, data);
+      return { kind: 'file', filename: r.filename, size: r.size };
+    }
+    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name}.tar`);
+    return { kind: 'tar', filename: r.filename, size: r.size };
+  } catch (e) {
+    throw archiveError(e, 'Docker could not read the file');
+  }
+}
+
+/** Streams a folder (or any path) to disk as a tar. */
+export async function saveFolder(id: string, path: string, name: string): Promise<Saved> {
+  try {
+    const r = await docker.download(`/containers/${enc(id)}/archive`, { path }, `${name || 'root'}.tar`);
+    return { kind: 'tar', filename: r.filename, size: r.size };
+  } catch (e) {
+    throw archiveError(e, 'Docker could not read the folder');
+  }
+}
+
+export interface Transfer {
+  cancel(): void;
+  done: Promise<void>;
+}
+
+/** Wraps an upload so a non-2xx answer of the Engine becomes an FsError, and cancel() is easy to reach. */
+export function sendTar(id: string, dir: string, tar: Blob, onProgress?: (p: { loaded: number; total: number }) => void): Transfer {
+  const up = docker.upload('PUT', `/containers/${enc(id)}/archive`, { query: { path: dir }, headers: { 'Content-Type': 'application/x-tar' } }, tar, onProgress);
+  return {
+    cancel: () => up.cancel(),
+    done: up.then(
+      (r) => {
+        if (r.status >= 400) throw archiveError(new DockerError(r.status, engineMessage(r)), 'Docker could not write the file');
+      },
+      (e) => {
+        throw archiveError(e, 'Docker could not write the file');
+      },
+    ),
+  };
+}
+
+/** Sends a file (any size: it is not read into memory) into a folder of the container. */
+export function uploadFile(id: string, dir: string, file: File, onProgress?: (p: { loaded: number; total: number }) => void): Transfer {
+  return sendTar(id, dir, tarBlob([{ name: file.name, data: file, mtime: Math.floor(file.lastModified / 1000) }]), onProgress);
 }
 
 export async function makeDir(id: string, dir: string, name: string): Promise<void> {
-  await put(id, dir, writeTar([{ name: `${name}/` }]));
-}
-
-async function put(id: string, dir: string, tar: Uint8Array): Promise<void> {
-  try {
-    const r = await docker.request('PUT', `/containers/${enc(id)}/archive`, { query: { path: dir }, headers: { 'Content-Type': 'application/x-tar' }, body: tar });
-    if (r.status >= 400) {
-      let msg = r.body;
-      try {
-        msg = (r.json() as { message?: string }).message ?? msg;
-      } catch {
-        /* plain */
-      }
-      throw new DockerError(r.status, msg.slice(0, 300));
-    }
-  } catch (e) {
-    throw archiveError(e, 'Docker could not write the file');
-  }
+  await sendTar(id, dir, tarBlob([{ name: `${name}/` }])).done;
 }
 
 export async function removePath(id: string, path: string): Promise<void> {
@@ -283,22 +346,4 @@ export async function removePath(id: string, path: string): Promise<void> {
   if (p === '/') throw new FsError('other', 'The root folder cannot be deleted.');
   const r = await execRun(id, ['rm', '-rf', '--', p]);
   if (r.code !== 0) throw new FsError(/Permission denied|Read-only/i.test(r.stderr) ? 'denied' : 'other', r.stderr.trim() || `rm exited with ${r.code}`);
-}
-
-/** Saves bytes through the browser (a Blob link). Returns false when the browser refused. */
-export function saveBlob(name: string, data: Uint8Array): boolean {
-  try {
-    const url = URL.createObjectURL(new Blob([data as BlobPart], { type: 'application/octet-stream' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = name;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 30000);
-    return true;
-  } catch {
-    return false;
-  }
 }

@@ -3,15 +3,16 @@
  * is JSON lines. The classic builder writes "Step 2/5 : RUN ..." lines in {stream}, then {aux: {ID}} with the image id
  * and "Successfully tagged ...", or {error, errorDetail} when a step fails. This turns those lines into steps.
  */
-import { stream, type StreamHandle } from '../../api/engine';
+import { engineMessage, stream, upload, type StreamHandle } from '../../api/engine';
 import { registryConfigHeader } from '../../api/registries';
 import { JsonLines } from '../../api/streams';
 import { buildQuery, type BuildOptions } from './options';
 
-export { MAX_CONTEXT, MAX_RAW_CONTEXT, parsePairs } from './options';
+export { GZIP_LIMIT, parsePairs } from './options';
 export type { BuildOptions } from './options';
 
-export type BuildSource = { kind: 'tar'; tar: Uint8Array } | { kind: 'remote'; url: string };
+/** A small context built here (the Dockerfile editor), a context of any size as a Blob (sent with api.upload), or a Git/tarball URL. */
+export type BuildSource = { kind: 'tar'; tar: Uint8Array } | { kind: 'blob'; blob: Blob } | { kind: 'remote'; url: string };
 
 export interface BuildStep {
   n: number;
@@ -31,6 +32,8 @@ export interface BuildState {
   imageId?: string;
   tagged: string[];
   error?: string;
+  /** Progress of sending a context (a Blob), until the last byte is out. */
+  sending?: { loaded: number; total: number };
   cancelled?: boolean;
   finished: boolean;
 }
@@ -52,6 +55,7 @@ export function runBuild(src: BuildSource, opts: BuildOptions, onState: (s: Buil
   const st: BuildState = { pre: [], steps: [], activity: '', tagged: [], finished: false };
   let carry = '';
   let handle: StreamHandle | undefined;
+  let inner: { cancel(): void } | undefined;
   let cancelled = false;
   const emit = () => onState({ ...st, pre: [...st.pre], steps: st.steps.map((s) => ({ ...s, lines: [...s.lines] })), tagged: [...st.tagged] });
   const cur = (): BuildStep | undefined => st.steps[st.steps.length - 1];
@@ -85,6 +89,7 @@ export function runBuild(src: BuildSource, opts: BuildOptions, onState: (s: Buil
     }
     st.finished = true;
     st.activity = '';
+    st.sending = undefined;
     emit();
   };
 
@@ -119,22 +124,47 @@ export function runBuild(src: BuildSource, opts: BuildOptions, onState: (s: Buil
     .catch(() => undefined)
     .then((cfg) => {
       if (cancelled) return;
+      const query = buildQuery(opts, src.kind === 'remote' ? src.url : undefined);
+      const reg: Record<string, string> = cfg ? { 'X-Registry-Config': cfg } : {};
+      const done = () => {
+        lines.end();
+        if (carry.trim()) addLine(carry.trim());
+        carry = '';
+        finish();
+      };
+      if (src.kind === 'blob') {
+        // Streamed in both directions: the context goes out as a body of any size, the answer comes back as JSON lines.
+        let status = 200;
+        let errBody = '';
+        const up = upload('POST', '/build', { query, headers: { 'Content-Type': 'application/x-tar', ...reg } }, src.blob, {
+          onProgress: (p) => {
+            st.sending = p.loaded < p.total ? p : undefined;
+            emit();
+          },
+          onResponseStart: (s) => {
+            status = s;
+            st.sending = undefined;
+          },
+          onResponseData: (c) => (status >= 400 ? (errBody += new TextDecoder().decode(c)) : lines.push(c)),
+        });
+        inner = up;
+        up.then(
+          () => (status >= 400 ? finish(engineMessage({ status, body: errBody })) : done()),
+          (e: Error) => finish(cancelled ? undefined : e.message),
+        );
+        return;
+      }
       handle = stream(
         'POST',
         '/build',
         {
-          query: buildQuery(opts, src.kind === 'remote' ? src.url : undefined),
-          headers: { ...(src.kind === 'tar' ? { 'Content-Type': 'application/x-tar' } : {}), ...(cfg ? { 'X-Registry-Config': cfg } : {}) },
+          query,
+          headers: { ...(src.kind === 'tar' ? { 'Content-Type': 'application/x-tar' } : {}), ...reg },
           body: src.kind === 'tar' ? src.tar : undefined,
         },
         {
           onData: (c) => lines.push(c),
-          onEnd: () => {
-            lines.end();
-            if (carry.trim()) addLine(carry.trim());
-            carry = '';
-            finish();
-          },
+          onEnd: done,
           onError: (e) => finish(e.message),
         },
       );
@@ -144,6 +174,7 @@ export function runBuild(src: BuildSource, opts: BuildOptions, onState: (s: Buil
     close() {
       cancelled = true;
       handle?.close();
+      inner?.cancel();
       if (!st.finished) {
         st.cancelled = true;
         finish();

@@ -41,12 +41,5 @@ export function parsePairs(text: string): { pairs: Record<string, string>; bad?:
   return { pairs };
 }
 
-/**
- * Largest request body the plugin sends, in bytes (the context after gzip). The Engine takes 8 MB, but a streamed
- * request travels in one console WebSocket message (512 KiB, base64 coded), so about 380 KiB is the most that fits.
- * A later core release lifts it.
- */
-export const MAX_CONTEXT = 380 * 1024;
-
-/** Larger raw contexts are not even packed: they could not fit after compression either. */
-export const MAX_RAW_CONTEXT = 64 << 20;
+/** Picked files and folders totalling up to this many bytes are compressed before they are sent; bigger contexts go as a plain tar. */
+export const GZIP_LIMIT = 64 << 20;

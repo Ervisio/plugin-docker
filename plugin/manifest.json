@@ -444,6 +444,7 @@
           "X-Registry-Config"
         ],
         "maxBody": 8388608,
+        "maxUpload": 1099511627776,
         "name": "docker",
         "rules": [
           {
@@ -542,6 +543,12 @@
             "methods": [
               "GET"
             ],
+            "path": "/v1\\.[0-9]+/images/get"
+          },
+          {
+            "methods": [
+              "GET"
+            ],
             "path": "/v1\\.[0-9]+/images/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*(?:/[a-zA-Z0-9_:@-]+(?:\\.[a-zA-Z0-9_:@-]+)*){0,9}/(json|history)"
           },
           {
@@ -549,6 +556,12 @@
               "POST"
             ],
             "path": "/v1\\.[0-9]+/images/create"
+          },
+          {
+            "methods": [
+              "POST"
+            ],
+            "path": "/v1\\.[0-9]+/images/load"
           },
           {
             "methods": [

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FILE_LIMIT, UPLOAD_LIMIT, FsError, joinPath, listDir, makeDir, normalizePath, parentOf, readFile, removePath, saveBlob, validName, writeFile, type FsEntry, type Listing } from '../../api/files';
+import { PREVIEW_LIMIT, SAVE_LIMIT, FsError, joinPath, listDir, makeDir, normalizePath, parentOf, readFile, removePath, saveFileOf, saveFolder, uploadFile, validName, type FsEntry, type Listing, type Transfer } from '../../api/files';
 import { classify } from '../../api/engine';
 import { formatBytes } from '../../api/format';
 import { t } from '../../i18n';
-import { Button, Dialog, EmptyState, Icon, IconButton, Input, Skeleton, toast } from '../../kit';
+import { Button, Dialog, EmptyState, Icon, IconButton, Input, Progress, Skeleton, toast } from '../../kit';
 import { DataTable, type DataColumn } from '../../ui/DataTable';
 import { ConfirmBox } from './ConfirmBox';
 import { copyText } from './util';
@@ -37,10 +37,22 @@ function failText(e: unknown, path: string): string {
   return classify(e).message;
 }
 
-/** A file browser for the inside of a container. Reads and writes through the Engine API, so it also works when the container is stopped. */
-export function FilesTab({ id, running }: { id: string; running: boolean }) {
-  const [path, setPath] = useState('/');
-  const [draft, setDraft] = useState('/');
+/**
+ * A file browser for the inside of a container. Reads and writes through the Engine API, so it also works when the
+ * container is stopped. `root` keeps the browser inside one folder (a volume mounted at /volume); `readOnly` hides
+ * everything that writes.
+ */
+export function FilesTab({ id, running, root = '/', readOnly = false }: { id: string; running: boolean; root?: string; readOnly?: boolean }) {
+  const [path, setPath] = useState(root);
+  const [draft, setDraft] = useState(root);
+  const [xfer, setXfer] = useState<{ name: string; loaded: number; total: number } | undefined>();
+  const transfer = useRef<Transfer | undefined>();
+  useEffect(() => () => transfer.current?.cancel(), []);
+  /** Paths outside the root are brought back to it. */
+  const inRoot = (p: string): string => {
+    const n = normalizePath(p);
+    return root === '/' || n === root || n.startsWith(`${root}/`) ? n : root;
+  };
   const [list, setList] = useState<Listing | undefined>();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -50,7 +62,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
   const [mkErr, setMkErr] = useState('');
   const [del, setDel] = useState<FsEntry | undefined>();
   const [view, setView] = useState<{ entry: FsEntry; data: Uint8Array; at: string } | undefined>();
-  const [over, setOver] = useState<{ file: File; data: Uint8Array } | undefined>();
+  const [over, setOver] = useState<{ file: File } | undefined>();
   const seq = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -59,7 +71,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
       const n = ++seq.current;
       setLoading(true);
       try {
-        const l = await listDir(id, to, running);
+        const l = await listDir(id, inRoot(to), running);
         if (n !== seq.current) return;
         setList(l);
         setPath(l.path);
@@ -67,7 +79,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
         setError('');
       } catch (e) {
         if (n !== seq.current) return;
-        setPath(normalizePath(to));
+        setPath(inRoot(to));
         setError(failText(e, to));
       } finally {
         if (n === seq.current) setLoading(false);
@@ -82,7 +94,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
   }, [id, running]);
 
   const go = (to: string) => {
-    const p = normalizePath(to);
+    const p = inRoot(to);
     setDraft(p);
     void load(p);
   };
@@ -105,11 +117,11 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
 
   const preview = async (e: FsEntry, at?: string) => {
     if (e.kind !== 'file') return toast.info(t('container.files.notFile', { name: e.name }));
-    if (e.size > FILE_LIMIT) return toast.err(t('container.files.tooBig', { name: e.name, size: formatBytes(e.size) }), t('container.files.limitText'));
+    if (e.size > PREVIEW_LIMIT) return toast.info(t('container.files.noPreview', { name: e.name, size: formatBytes(e.size) }), t('container.files.noPreviewText'));
     setBusy(`d:${e.name}`);
     try {
       const full = at ?? joinPath(path, e.name);
-      setView({ entry: e, data: await readFile(id, full), at: full });
+      setView({ entry: e, data: await readFile(id, full, PREVIEW_LIMIT), at: full });
     } catch (err) {
       toast.err(t('container.files.downloadFail', { name: e.name }), failText(err, at ?? joinPath(path, e.name)));
     } finally {
@@ -117,21 +129,17 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
     }
   };
 
+  /** A file up to 64 MB is saved under its name; a folder or a bigger file is streamed to disk as a .tar. */
   const download = async (e: FsEntry, known?: Uint8Array) => {
     const full = joinPath(path, e.name);
-    if (e.kind !== 'file') {
+    if (e.kind !== 'file' && e.kind !== 'dir') {
       toast.info(t('container.files.notFile', { name: e.name }));
-      return;
-    }
-    if (e.size > FILE_LIMIT) {
-      toast.err(t('container.files.tooBig', { name: e.name, size: formatBytes(e.size) }), t('container.files.limitText'));
       return;
     }
     setBusy(`d:${e.name}`);
     try {
-      const data = known ?? (await readFile(id, full));
-      if (saveBlob(e.name, data)) toast.ok(t('container.files.downloaded', { name: e.name, size: formatBytes(data.length) }));
-      else toast.err(t('container.files.saveFail', { name: e.name }));
+      const r = e.kind === 'dir' ? await saveFolder(id, full, e.name) : await saveFileOf(id, full, e.name, e.size, known);
+      toast.ok(r.kind === 'tar' ? t('container.files.downloadedTar', { name: r.filename }) : t('container.files.downloaded', { name: r.filename, size: formatBytes(r.size ?? 0) }), r.kind === 'tar' && e.kind === 'file' ? t('container.files.tarWhy', { size: formatBytes(SAVE_LIMIT, 0) }) : undefined);
     } catch (err) {
       toast.err(t('container.files.downloadFail', { name: e.name }), failText(err, full));
     } finally {
@@ -139,15 +147,21 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
     }
   };
 
-  const doUpload = async (file: File, data: Uint8Array) => {
+  const doUpload = async (file: File) => {
     setBusy('upload');
+    setXfer({ name: file.name, loaded: 0, total: file.size });
+    const x = uploadFile(id, path, file, (p) => setXfer({ name: file.name, loaded: p.loaded, total: p.total }));
+    transfer.current = x;
     try {
-      await writeFile(id, path, file.name, data);
+      await x.done;
       toast.ok(t('container.files.uploaded', { name: file.name, path }));
       await load(path);
     } catch (err) {
-      toast.err(t('container.files.uploadFail', { name: file.name }), failText(err, path));
+      if ((err as { code?: string })?.code === 'cancelled' || /cancelled/i.test((err as Error)?.message ?? '')) toast.info(t('container.files.uploadCancelled', { name: file.name }));
+      else toast.err(t('container.files.uploadFail', { name: file.name }), failText(err, path));
     } finally {
+      transfer.current = undefined;
+      setXfer(undefined);
       setBusy('');
     }
   };
@@ -158,13 +172,20 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
       toast.err(t('container.files.nameBad'));
       return;
     }
-    if (file.size > UPLOAD_LIMIT) {
-      toast.err(t('container.files.tooBig', { name: file.name, size: formatBytes(file.size) }), t('container.files.limitUp', { size: formatBytes(UPLOAD_LIMIT) }));
-      return;
+    if (list?.entries.some((x) => x.name === file.name)) setOver({ file });
+    else await doUpload(file);
+  };
+
+  const downloadHere = async () => {
+    setBusy('folder');
+    try {
+      const r = await saveFolder(id, path, path === '/' ? 'root' : path.split('/').pop() ?? 'folder');
+      toast.ok(t('container.files.downloadedTar', { name: r.filename }));
+    } catch (err) {
+      toast.err(t('container.files.downloadFail', { name: path }), failText(err, path));
+    } finally {
+      setBusy('');
     }
-    const data = new Uint8Array(await file.arrayBuffer());
-    if (list?.entries.some((x) => x.name === file.name)) setOver({ file, data });
-    else await doUpload(file, data);
   };
 
   const create = async () => {
@@ -185,7 +206,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
     }
   };
 
-  const canDelete = running && list?.via === 'exec';
+  const canDelete = !readOnly && running && list?.via === 'exec';
   const delReason = !running ? t('container.files.del.stopped') : list?.via !== 'exec' ? t('container.files.del.noShell') : '';
 
   const cols: DataColumn<FsEntry>[] = [
@@ -209,8 +230,8 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
       width: 84,
       render: (e) => (
         <span className="dk-c-fl-act" onClick={(ev) => ev.stopPropagation()}>
-          {e.kind === 'file' && <IconButton icon="download" size="sm" variant="ghost" label={t('container.files.download')} loading={busy === `d:${e.name}`} onClick={() => void download(e)} />}
-          <IconButton icon="trash" size="sm" variant="ghost" label={canDelete ? t('container.files.delete') : delReason} disabled={!canDelete} onClick={() => setDel(e)} />
+          {(e.kind === 'file' || e.kind === 'dir') && <IconButton icon="download" size="sm" variant="ghost" label={e.kind === 'dir' ? t('container.files.downloadTar') : t('container.files.download')} loading={busy === `d:${e.name}`} onClick={() => void download(e)} />}
+          {!readOnly && <IconButton icon="trash" size="sm" variant="ghost" label={canDelete ? t('container.files.delete') : delReason} disabled={!canDelete} onClick={() => setDel(e)} />}
         </span>
       ),
     },
@@ -219,14 +240,27 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
   return (
     <div className="dk-card dk-c-files">
       <div className="dk-c-fl-bar">
-        <IconButton icon="chevronup" label={t('container.files.up')} disabled={path === '/'} onClick={() => go(parentOf(path))} />
+        <IconButton icon="chevronup" label={t('container.files.up')} disabled={path === root} onClick={() => go(parentOf(path))} />
         <Input fieldClassName="dk-c-grow" mono compact value={draft} aria-label={t('container.files.path')} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') go(draft.startsWith('/') ? draft : `/${draft}`); }} spellCheck={false} autoCapitalize="off" />
         <IconButton icon="refresh" label={t('common.refresh')} onClick={() => void load(path)} />
-        <Button size="sm" icon="folderplus" onClick={() => { setMkdir(true); setFolder(''); setMkErr(''); }} disabled={!!busy}>{t('container.files.newFolder')}</Button>
-        <Button size="sm" icon="upload" loading={busy === 'upload'} onClick={() => fileInput.current?.click()} disabled={!!busy}>{t('container.files.upload')}</Button>
-        <input ref={fileInput} type="file" hidden aria-label={t('container.files.upload')} onChange={(e) => void pick(e.target.files?.[0])} />
+        <Button size="sm" icon="download" disabled={!!busy || !!error} loading={busy === 'folder'} onClick={() => void downloadHere()}>{t('container.files.downloadHere')}</Button>
+        {!readOnly && (
+          <>
+            <Button size="sm" icon="folderplus" onClick={() => { setMkdir(true); setFolder(''); setMkErr(''); }} disabled={!!busy}>{t('container.files.newFolder')}</Button>
+            <Button size="sm" icon="upload" loading={busy === 'upload'} onClick={() => fileInput.current?.click()} disabled={!!busy}>{t('container.files.upload')}</Button>
+            <input ref={fileInput} type="file" hidden aria-label={t('container.files.upload')} onChange={(e) => void pick(e.target.files?.[0])} />
+          </>
+        )}
       </div>
 
+      {xfer && (
+        <div className="dk-c-fl-xfer" role="status">
+          <span className="dk-c-fl-xn">{t('container.files.sending', { name: xfer.name })}</span>
+          <div className="dk-c-fl-pg"><Progress value={xfer.total ? Math.min(1, xfer.loaded / xfer.total) * 100 : 0} /></div>
+          <span className="dk-muted">{formatBytes(xfer.loaded)} / {formatBytes(xfer.total)}</span>
+          <Button size="sm" variant="ghost" icon="close" onClick={() => transfer.current?.cancel()}>{t('common.cancel')}</Button>
+        </div>
+      )}
       {!running && <p className="dk-muted dk-c-fl-note"><Icon name="info" size={14} /> {t('container.files.stopped')}</p>}
       {running && list?.via === 'archive' && <p className="dk-muted dk-c-fl-note"><Icon name="info" size={14} /> {t('container.files.noLs')}</p>}
       {list?.cut && <p className="dk-muted dk-c-fl-note"><Icon name="info" size={14} /> {t('container.files.cut')}</p>}
@@ -241,10 +275,9 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
           rows={list?.entries ?? []}
           rowKey={(e) => e.name}
           onRowClick={open}
-          empty={<EmptyState icon="files" hue="file" title={t('container.files.empty')} text={t('container.files.emptyText')} />}
+          empty={<EmptyState icon="files" hue="file" title={t('container.files.empty')} text={readOnly ? undefined : t('container.files.emptyText')} />}
         />
       )}
-      <p className="dk-muted dk-c-fl-note">{t('container.files.limit', { down: formatBytes(FILE_LIMIT, 0), up: formatBytes(UPLOAD_LIMIT, 0) })}</p>
 
       <Dialog
         open={mkdir}
@@ -313,7 +346,7 @@ export function FilesTab({ id, running }: { id: string; running: boolean }) {
         confirmLabel={t('container.files.replace')}
         icon="upload"
         onConfirm={async () => {
-          if (over) await doUpload(over.file, over.data);
+          if (over) await doUpload(over.file);
         }}
       />
     </div>

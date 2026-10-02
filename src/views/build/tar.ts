@@ -1,3 +1,5 @@
+import { tarBlob, type TarWrite } from '../../api/tar';
+
 /** A small tar writer (ustar, with pax headers for long names): packs the files a user picked into a build context. */
 
 export interface TarFile {
@@ -106,21 +108,26 @@ export function pickedFrom(list: FileList | File[], stripRoot: boolean): Picked[
   });
 }
 
-/** Reads the picked files and packs them. */
-export async function packPicked(picked: Picked[]): Promise<Uint8Array> {
-  const files: TarFile[] = [];
+/**
+ * Packs the picked files into a tar Blob without reading them into memory: each File stays a part of the Blob. Up to
+ * GZIP_LIMIT of content the tar is compressed (source trees shrink a lot; Docker detects gzip by itself).
+ */
+export async function packPicked(picked: Picked[], gzipLimit: number): Promise<Blob> {
+  const entries: TarWrite[] = [];
+  let total = 0;
   for (const p of picked) {
-    const data = new Uint8Array(await p.file.arrayBuffer());
     // The browser does not tell file modes: scripts (a "#!" first line) stay runnable.
-    const script = data.length > 2 && data[0] === 0x23 && data[1] === 0x21;
-    files.push({ path: p.path.replace(/^\/+/, ''), data, mode: script ? 0o755 : 0o644, mtime: Math.floor(p.file.lastModified / 1000) });
+    const head = new Uint8Array(await p.file.slice(0, 2).arrayBuffer());
+    const script = head.length === 2 && head[0] === 0x23 && head[1] === 0x21;
+    total += p.file.size;
+    entries.push({ name: p.path.replace(/^\/+/, ''), data: p.file, mode: script ? 0o755 : 0o644, mtime: Math.floor(p.file.lastModified / 1000) });
   }
-  return packTar(files);
+  const tar = tarBlob(entries);
+  return total <= gzipLimit ? gzipBlob(tar) : tar;
 }
 
 /** gzip with the browser's CompressionStream; returns the input unchanged when the browser has none. */
-export async function gzip(data: Uint8Array): Promise<Uint8Array> {
+export async function gzipBlob(data: Blob): Promise<Blob> {
   if (typeof CompressionStream === 'undefined') return data;
-  const stream = new Blob([data as BlobPart]).stream().pipeThrough(new CompressionStream('gzip'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
+  return new Response(data.stream().pipeThrough(new CompressionStream('gzip'))).blob();
 }

@@ -190,3 +190,6 @@
 .dk-c-commit-done { display: flex; gap: 12px; align-items: flex-start; color: var(--ok); }
 .dk-c-commit-done b { color: var(--ink); }
 .dk-c-fl-pre { margin: 0; max-height: 50vh; overflow: auto; background: var(--bg); border-radius: 12px; padding: 12px 14px; font: 12.5px/1.6 var(--mono); color: var(--ink2); white-space: pre-wrap; word-break: break-all; }
+.dk-c-fl-xfer { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.dk-c-fl-pg { flex: 1 1 160px; min-width: 120px; }
+.dk-c-fl-xn { font-family: var(--mono); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 40ch; }
