@@ -634,7 +634,7 @@
   "icon": "server",
   "id": "docker",
   "name": "Docker",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "visibleTo": {
     "groups": [
       "docker",
