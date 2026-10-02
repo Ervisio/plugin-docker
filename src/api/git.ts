@@ -168,7 +168,11 @@ export async function detachStack(name: string): Promise<{ copied: boolean }> {
   const meta = await readMeta(name);
   let copied = false;
   if (meta && meta.compose !== COMPOSE_FILE) {
-    await fsx.write(`${root}/${COMPOSE_FILE}`, await fsx.read(`${root}/${meta.compose}`));
+    const text = await fsx.read(`${root}/${meta.compose}`);
+    // The repository may have its own compose.yaml at the top: keep it as compose.yaml.orig instead of losing it.
+    const old = await fsx.read(`${root}/${COMPOSE_FILE}`).catch(() => null);
+    if (old !== null && old !== text) await fsx.write(`${root}/${COMPOSE_FILE}.orig`, old);
+    await fsx.write(`${root}/${COMPOSE_FILE}`, text);
     const dir = meta.compose.replace(/\/[^/]*$/, '');
     const env = await fsx.read(`${root}/${dir}/.env`).catch(() => null);
     if (env !== null) await fsx.write(`${root}/.env`, env);

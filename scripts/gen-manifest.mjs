@@ -116,6 +116,7 @@ commands.push(
     [P_VOLUME, P_KEEP],
     { ...priv, timeoutSec: 600 },
   ),
+  cmd('volume-check', 'Check that a volume exists', [...SOCK, 'volume', 'inspect', '--format', '{{.Name}}', '{0}'], [P_VOLUME], { ...priv, timeoutSec: 30 }),
   cmd('volume-backup-ls', 'List the backups of a volume', ['ls', '-l', '--time-style=long-iso', `${BACKUP_DIR}/{0}`], [P_VOLUME], { timeoutSec: 15 }),
 );
 
@@ -159,9 +160,17 @@ function gitPoll(mode) {
 
 function backup(mode) {
   const f = wantsFail(mode);
-  const steps = [{ id: 'run', command: 'volume-backup', args: ['{param.volume}', '{param.keep}'], ...(f ? { continueOnError: true } : {}) }];
+  const keep = f ? { continueOnError: true } : {};
+  // Without this check docker would create an empty volume of that name and back up nothing.
+  const steps = [
+    { id: 'check', command: 'volume-check', args: ['{param.volume}'], ...keep },
+    { id: 'run', ...(f ? { if: { step: 'check', when: 'ok' } } : {}), command: 'volume-backup', args: ['{param.volume}', '{param.keep}'], ...keep },
+  ];
   if (wantsOk(mode)) steps.push({ id: 'said', if: { step: 'run', when: 'ok' }, notify: { title: 'Backed up volume {param.volume}', level: 'success', link: LINK } });
-  if (f) steps.push({ id: 'fail', if: { step: 'run', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.run.stderr}', level: 'error', link: LINK } });
+  if (f) {
+    steps.push({ id: 'fail_check', if: { step: 'check', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.check.stderr}', level: 'error', link: LINK } });
+    steps.push({ id: 'fail', if: { step: 'run', when: 'failed' }, notify: { title: 'Backup of volume {param.volume} failed', body: '{step.run.stderr}', level: 'error', link: LINK } });
+  }
   return {
     name: `volume-backup-${mode}`,
     description: `Write a tar of a volume to the backup folder (${MODES[mode]}).`,

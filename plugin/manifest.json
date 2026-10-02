@@ -1042,6 +1042,29 @@
         ]
       },
       {
+        "admin": true,
+        "adminUnlessGroup": "docker",
+        "timeoutSec": 30,
+        "name": "volume-check",
+        "description": "Check that a volume exists",
+        "argv": [
+          "docker",
+          "-H",
+          "unix:///var/run/docker.sock",
+          "volume",
+          "inspect",
+          "--format",
+          "{{.Name}}",
+          "{0}"
+        ],
+        "args": [
+          {
+            "pattern": "[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}",
+            "maxLen": 128
+          }
+        ]
+      },
+      {
         "timeoutSec": 15,
         "name": "volume-backup-ls",
         "description": "List the backups of a volume",
@@ -2004,6 +2027,13 @@
         ],
         "steps": [
           {
+            "id": "check",
+            "command": "volume-check",
+            "args": [
+              "{param.volume}"
+            ]
+          },
+          {
             "id": "run",
             "command": "volume-backup",
             "args": [
@@ -2033,6 +2063,13 @@
           }
         ],
         "steps": [
+          {
+            "id": "check",
+            "command": "volume-check",
+            "args": [
+              "{param.volume}"
+            ]
+          },
           {
             "id": "run",
             "command": "volume-backup",
@@ -2076,13 +2113,38 @@
         ],
         "steps": [
           {
+            "id": "check",
+            "command": "volume-check",
+            "args": [
+              "{param.volume}"
+            ],
+            "continueOnError": true
+          },
+          {
             "id": "run",
+            "if": {
+              "step": "check",
+              "when": "ok"
+            },
             "command": "volume-backup",
             "args": [
               "{param.volume}",
               "{param.keep}"
             ],
             "continueOnError": true
+          },
+          {
+            "id": "fail_check",
+            "if": {
+              "step": "check",
+              "when": "failed"
+            },
+            "notify": {
+              "title": "Backup of volume {param.volume} failed",
+              "body": "{step.check.stderr}",
+              "level": "error",
+              "link": "/p/docker"
+            }
           },
           {
             "id": "fail",
@@ -2120,7 +2182,19 @@
         ],
         "steps": [
           {
+            "id": "check",
+            "command": "volume-check",
+            "args": [
+              "{param.volume}"
+            ],
+            "continueOnError": true
+          },
+          {
             "id": "run",
+            "if": {
+              "step": "check",
+              "when": "ok"
+            },
             "command": "volume-backup",
             "args": [
               "{param.volume}",
@@ -2137,6 +2211,19 @@
             "notify": {
               "title": "Backed up volume {param.volume}",
               "level": "success",
+              "link": "/p/docker"
+            }
+          },
+          {
+            "id": "fail_check",
+            "if": {
+              "step": "check",
+              "when": "failed"
+            },
+            "notify": {
+              "title": "Backup of volume {param.volume} failed",
+              "body": "{step.check.stderr}",
+              "level": "error",
               "link": "/p/docker"
             }
           },

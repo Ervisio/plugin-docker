@@ -9,6 +9,8 @@ import { useSearch } from '../router';
 import { DiskBar } from '../ui/DiskBar';
 import { ErrorState } from '../ui/ErrorState';
 import { PageHeader } from '../ui/PageHeader';
+import { jobsAvailable } from '../api/jobs';
+import { BackupSchedules } from './jobs/BackupSchedules';
 import { CopyButton, groupContainers, isAnonymousVolume, matchesText, UsedBy } from './resources/bits';
 
 type Filter = 'all' | 'used' | 'unused';
@@ -22,6 +24,7 @@ export function VolumesPage() {
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
   const [removing, setRemoving] = useState<VolumeInfo | null>(null);
+  const [scheduling, setScheduling] = useState<string | null>(null);
 
   const usedBy = useMemo(() => groupContainers(cts, (c) => (c.Mounts ?? []).filter((m) => m.Type === 'volume' && m.Name).map((m) => m.Name!)), [cts]);
   const sizes = useMemo(() => new Map((df?.Volumes ?? []).map((v) => [v.Name, v.UsageData?.Size ?? -1])), [df]);
@@ -37,7 +40,12 @@ export function VolumesPage() {
       hue="term"
       title={t('nav.volumes')}
       subtitle={data ? (df ? tn('res.volumes.sub', { n: list.length, size: formatBytes(total) }) : tn('res.volumes.count', { n: list.length })) : ''}
-      actions={<Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t('res.volumes.new')}</Button>}
+      actions={
+        <>
+          {jobsAvailable() && <Button icon="clock" onClick={() => setScheduling('')}>{t('bk.schedule')}</Button>}
+          <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>{t('res.volumes.new')}</Button>
+        </>
+      }
     />
   );
   if (!data && error) return <>{header}<ErrorState error={error} onRetry={() => { resetEngine(); void volumes.refresh(); }} /></>;
@@ -66,6 +74,7 @@ export function VolumesPage() {
       {header}
       <DiskBar />
       {creating && <CreateVolume onClose={() => setCreating(false)} />}
+      {jobsAvailable() && <BackupSchedules volumes={list.filter((v) => !isAnonymousVolume(v.Name)).map((v) => v.Name)} adding={scheduling !== null} prefill={scheduling || undefined} onDone={() => setScheduling(null)} />}
       <section className="dk-card">
         <div className="dk-bar1">
           <Input fieldClassName="dk-grow" icon="search" placeholder={t('res.volumes.filter')} aria-label={t('res.volumes.filter')} value={q} onChange={(e) => setQ(e.target.value)} />
@@ -108,6 +117,7 @@ export function VolumesPage() {
                       <td className="dk-hide-md dk-muted">{v.CreatedAt ? relativeTime(v.CreatedAt) : '–'}</td>
                       <td>
                         <div className="dk-act">
+                          {jobsAvailable() && !isAnonymousVolume(v.Name) && <IconButton icon="clock" size="sm" variant="ghost" label={t('bk.scheduleFor', { name: v.Name })} onClick={() => setScheduling(v.Name)} />}
                           <IconButton icon="trash" size="sm" variant="ghost" label={users.length ? t('res.volumes.inUseHint') : t('common.remove')} disabled={users.length > 0} onClick={() => setRemoving(v)} />
                         </div>
                       </td>

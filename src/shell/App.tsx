@@ -12,7 +12,7 @@ import { ViewHost } from '../views/registry';
 const GROUPS: { label: string; items: NavId[] }[] = [
   { label: 'nav.workloads', items: ['containers', 'stacks', 'templates'] },
   { label: 'nav.resources', items: ['images', 'volumes', 'networks', 'registries'] },
-  { label: 'nav.tools', items: ['cleanup', 'autoupdate', 'alerts', 'settings'] },
+  { label: 'nav.tools', items: ['cleanup', 'autoupdate', 'alerts', 'portainer', 'settings'] },
 ];
 
 /** Views that list things the search box can filter. */

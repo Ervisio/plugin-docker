@@ -47,12 +47,13 @@ export type Route =
   | { view: 'cleanup' }
   | { view: 'autoupdate' }
   | { view: 'alerts' }
+  | { view: 'portainer' }
   | { view: 'settings' };
 
 export type View = Route['view'];
 
 /** Sidebar entries: each is a top-level route. */
-export type NavId = 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'settings';
+export type NavId = 'containers' | 'stacks' | 'templates' | 'images' | 'volumes' | 'networks' | 'registries' | 'cleanup' | 'autoupdate' | 'alerts' | 'portainer' | 'settings';
 
 /** Which sidebar entry is lit for a route. */
 export function sectionOf(r: Route): NavId {

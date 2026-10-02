@@ -46,3 +46,21 @@
 .dk-bk-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; background: var(--surface); flex-wrap: wrap; }
 .dk-bk-row > div { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
 .dk-bk-row b { font-weight: 700; }
+.dk-bk-row--col { flex-direction: column; align-items: stretch; }
+.dk-bk-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dk-bk-head > div { flex: 1; min-width: 180px; display: flex; flex-direction: column; }
+.dk-bk-head b { font-weight: 700; }
+.dk-bk-files { display: flex; flex-direction: column; gap: 6px; }
+.dk-bk-form { background: var(--surface); border-radius: 14px; padding: 12px 14px; }
+/* Import from Portainer */
+.dk-pt { display: flex; flex-direction: column; gap: 14px; }
+.dk-pt-list { display: flex; flex-direction: column; gap: 6px; }
+.dk-pt-item { background: var(--surface); border-radius: 12px; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; }
+.dk-pt-item--off .dk-pt-tx { opacity: 0.6; }
+.dk-pt-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dk-pt-tx { flex: 1; min-width: 180px; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.dk-pt-tx b { font-weight: 700; }
+.dk-pt-more { padding: 4px 4px 4px 34px; font-size: 13px; }
+.dk-pt-more ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.dk-pt-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dk-pt-bar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; position: sticky; bottom: 0; padding: 10px 0; }

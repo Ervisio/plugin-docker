@@ -8,6 +8,7 @@ import { ContainersPage } from './ContainersPage';
 import { CreatePage } from './CreatePage';
 import { ImagesPage } from './ImagesPage';
 import { NetworksPage } from './NetworksPage';
+import { PortainerPage } from './PortainerPage';
 import { RegistriesPage } from './RegistriesPage';
 import { GitStackPage } from './GitStackPage';
 import { StackPage } from './StackPage';
@@ -55,6 +56,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <AutoUpdatePage />;
     case 'alerts':
       return <AlertsPage />;
+    case 'portainer':
+      return <PortainerPage />;
     case 'settings':
       return <SettingsPage />;
   }

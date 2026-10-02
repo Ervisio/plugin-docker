@@ -23,5 +23,6 @@ export const NAV_ICONS = {
   cleanup: 'broom',
   autoupdate: 'refresh',
   alerts: 'bell',
+  portainer: 'download',
   settings: 'cog',
 } as const;
