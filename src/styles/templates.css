@@ -65,3 +65,20 @@ section.dk-tp-sources { background: var(--sunk); border-radius: 18px; padding: 1
 .dk-tp-deploy { display: flex; flex-direction: column; gap: 8px; }
 .dk-tp-link { color: var(--acc); text-decoration: none; font-weight: 700; }
 .dk-tp-link:hover { text-decoration: underline; }
+
+/* custom templates: editor and cards */
+.dk-te { display: flex; flex-direction: column; gap: 12px; }
+.dk-te-kind { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.dk-te-env { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--surface); }
+.dk-te-envr { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.dk-te-envr > .ui-switch, .dk-te-envr > label { align-self: center; }
+.dk-te-k { flex: 1 1 140px; min-width: 120px; }
+.dk-te-v { flex: 2 1 200px; min-width: 140px; }
+.dk-te-more { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+.dk-te-ed { border-radius: 14px; }
+.dk-tp-card--custom .dk-tp-ct { position: relative; }
+.dk-tp-cardmenu { margin-left: auto; flex: none; }
+.dk-tp-badge-c { font-size: 11px; }
+.dk-tp-yours { display: flex; flex-direction: column; gap: 8px; }
+.dk-tp-yours > h3 { margin: 0; font-size: 14px; font-weight: 800; }
+.dk-tp-yours > .dk-muted { margin: 0; }

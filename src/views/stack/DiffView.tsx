@@ -6,7 +6,7 @@ import { highlightLine } from './highlight';
 const CONTEXT = 3;
 
 /** Unified diff of the compose file against the last deployed copy, with unchanged runs folded. */
-export function DiffView({ oldText, newText }: { oldText: string; newText: string }) {
+export function DiffView({ oldText, newText, lang = 'yaml', quiet }: { oldText: string; newText: string; lang?: 'yaml' | 'env'; /** Say nothing when there is no difference. */ quiet?: boolean }) {
   const rows = useMemo(() => diffLines(oldText, newText), [oldText, newText]);
   const shown = useMemo(() => {
     const keep = new Array<boolean>(rows.length).fill(false);
@@ -25,7 +25,7 @@ export function DiffView({ oldText, newText }: { oldText: string; newText: strin
     if (skipped) out.push({ fold: skipped });
     return out;
   }, [rows]);
-  if (!rows.some((r) => r.type !== 'same')) return <p className="dk-muted dk-sk-nodiff">{t('stacks.diff.none')}</p>;
+  if (!rows.some((r) => r.type !== 'same')) return quiet ? null : <p className="dk-muted dk-sk-nodiff">{t('stacks.diff.none')}</p>;
   return (
     <div className="dk-ed">
       <div className="dk-ed-scroll dk-diff">
@@ -37,7 +37,7 @@ export function DiffView({ oldText, newText }: { oldText: string; newText: strin
               <span className="dk-diff-n">{x.row.oldNo ?? ''}</span>
               <span className="dk-diff-n">{x.row.newNo ?? ''}</span>
               <span className="dk-diff-m">{x.row.type === 'add' ? '+' : x.row.type === 'del' ? '-' : ''}</span>
-              <span className="dk-diff-t" dangerouslySetInnerHTML={{ __html: highlightLine(x.row.text, 'yaml') || '​' }} />
+              <span className="dk-diff-t" dangerouslySetInnerHTML={{ __html: highlightLine(x.row.text, lang) || '​' }} />
             </div>
           ),
         )}

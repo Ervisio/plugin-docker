@@ -13,7 +13,7 @@ export function DeployOutput({ state, deployedAt }: { state: DeployState | undef
     if (el) el.scrollTop = el.scrollHeight;
   }, [n]);
   if (!state) {
-    return <p className="dk-muted">{deployedAt ? t('stacks.deploy.lastAt', { ago: relativeTime(deployedAt) }) : t('stacks.deploy.never')}</p>;
+    return <p className="dk-muted">{deployedAt ? t('stacks.deploy.lastAt', { ago: relativeTime(deployedAt > 1e11 ? deployedAt / 1000 : deployedAt) }) : t('stacks.deploy.never')}</p>;
   }
   const done = !state.running && state.code === 0;
   const failed = !state.running && state.code !== 0;

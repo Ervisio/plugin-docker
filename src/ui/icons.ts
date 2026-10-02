@@ -22,4 +22,5 @@ export const NAV_ICONS = {
   cleanup: 'broom',
   autoupdate: 'refresh',
   alerts: 'bell',
+  settings: 'cog',
 } as const;

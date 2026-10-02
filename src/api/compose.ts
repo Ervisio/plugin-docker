@@ -18,6 +18,8 @@ export const STACK_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,62}$/;
 export const COMPOSE_FILE = 'compose.yaml';
 export const ENV_FILE = '.env';
 export const DEPLOYED_FILE = '.compose.deployed.yaml';
+/** Copy of .env as it was at the last successful deploy (the Diff tab compares against it). */
+export const DEPLOYED_ENV_FILE = '.compose.deployed.env';
 
 export type LineHandler = (stream: 'stdout' | 'stderr', line: string) => void;
 export type StackAction = 'down' | 'restart' | 'pull' | 'stop' | 'start';
@@ -68,7 +70,7 @@ async function retry<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const fsx = {
+export const fsx = {
   read: (p: string) => retry(() => getSdk().files.read(p)),
   list: (p: string) => retry(() => getSdk().files.list(p)),
   write: (p: string, d: string) => retry(() => getSdk().files.write(p, d)),
@@ -104,6 +106,8 @@ export interface StackFiles {
   env: string;
   /** The compose file as last deployed, or null when the stack was never deployed from here. */
   deployed: string | null;
+  /** The .env as last deployed, or null when no deploy has saved one yet. */
+  deployedEnv: string | null;
   hasEnv: boolean;
 }
 
@@ -120,12 +124,13 @@ async function readOptional(path: string): Promise<string | null> {
 export async function readStack(name: string): Promise<StackFiles> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   const dir = stackDir(name);
-  const [compose, env, deployed] = await Promise.all([
+  const [compose, env, deployed, deployedEnv] = await Promise.all([
     fsx.read(`${dir}/${COMPOSE_FILE}`),
     readOptional(`${dir}/${ENV_FILE}`),
     readOptional(`${dir}/${DEPLOYED_FILE}`),
+    readOptional(`${dir}/${DEPLOYED_ENV_FILE}`),
   ]);
-  return { name, compose, env: env ?? '', deployed, hasEnv: env !== null };
+  return { name, compose, env: env ?? '', deployed, deployedEnv, hasEnv: env !== null };
 }
 
 /** Service names of a compose text; empty when it does not parse. */
@@ -297,7 +302,7 @@ export function runCompose(command: string, args: string[], onLine: LineHandler)
   });
 }
 
-/** `docker compose up -d` for a managed stack; with `pull` it pulls first. On success the file is copied to .compose.deployed.yaml. */
+/** `docker compose up -d` for a managed stack; with `pull` it pulls first. On success compose.yaml and .env are copied to .compose.deployed.yaml and .compose.deployed.env. */
 export async function deployStack(name: string, opts: { pull?: boolean }, onLine: LineHandler): Promise<number> {
   if (!isValidStackName(name)) throw new Error('Invalid stack name');
   if (opts.pull) {
@@ -311,6 +316,8 @@ export async function deployStack(name: string, opts: { pull?: boolean }, onLine
     try {
       const text = await fsx.read(`${stackDir(name)}/${COMPOSE_FILE}`);
       await fsx.write(`${stackDir(name)}/${DEPLOYED_FILE}`, text);
+      const env = (await readOptional(`${stackDir(name)}/${ENV_FILE}`)) ?? '';
+      await fsx.write(`${stackDir(name)}/${DEPLOYED_ENV_FILE}`, env);
     } catch (e) {
       onLine('stderr', `Could not save the deployed copy: ${(e as Error).message}`);
     }

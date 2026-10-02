@@ -11,6 +11,8 @@ import { NetworksPage } from './NetworksPage';
 import { RegistriesPage } from './RegistriesPage';
 import { StackPage } from './StackPage';
 import { StacksPage } from './StacksPage';
+import { SettingsPage } from './SettingsPage';
+import { TemplateEditPage } from './TemplateEditPage';
 import { TemplatePage } from './TemplatePage';
 import { TemplatesPage } from './TemplatesPage';
 import { VolumesPage } from './VolumesPage';
@@ -32,6 +34,8 @@ export function ViewHost({ route }: { route: Route }) {
       return <TemplatesPage />;
     case 'template':
       return <TemplatePage id={route.id} />;
+    case 'template-edit':
+      return <TemplateEditPage id={route.id} seed={route.seed} />;
     case 'images':
       return <ImagesPage />;
     case 'build':
@@ -48,5 +52,7 @@ export function ViewHost({ route }: { route: Route }) {
       return <AutoUpdatePage />;
     case 'alerts':
       return <AlertsPage />;
+    case 'settings':
+      return <SettingsPage />;
   }
 }
