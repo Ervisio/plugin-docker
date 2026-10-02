@@ -25,7 +25,15 @@ The manifest is [plugin/manifest.json](plugin/manifest.json). In short:
 * **Commands**, all `admin` with `adminUnlessGroup: docker`: `docker compose` (up, pull, down, restart, stop, start,
   config, ls) for stacks, `install -d -m 2775 -g docker /opt/stacks` to create the stacks folder, and `shell`, a terminal (`pty`) running
   `docker exec -it <container> <shell>`, and `attach`, a terminal running
-  `docker attach --sig-proxy=false --detach-keys=ctrl-p,ctrl-q <container>`. Every command talks to `unix:///var/run/docker.sock`.
+  `docker attach --sig-proxy=false --detach-keys=ctrl-p,ctrl-q <container>`. Every command declares `"remote": "docker"` and
+  talks to `{env}`: this machine's `unix:///var/run/docker.sock`, or the tunnel of an environment (see below).
+* **Environments** (Ervisio 0.5 or later): the `docker` API and every `docker` command declare `"remote": "docker"`, so
+  the plugin can work on the Docker hosts an administrator adds in Settings › Environments (Docker API with TLS, SSH, a Portainer
+  Agent, or another Ervisio server). Against an environment calls run with the user's own rights through the user's
+  tunnel; `admin` and `adminUnlessGroup` do not apply. Stacks of a TLS, SSH or Portainer host keep their files on this
+  server in `/opt/stacks/.envs/<environment id>/<name>/` (compose runs here with `-H`), so the stack commands take the
+  folder prefix as a second argument. A paired Ervisio server keeps its stack files on itself (the pairing relays
+  calls and commands, not file access).
 * **Folders**: `/opt/stacks` (read and write, `admin`, for Compose stacks) and `~/.config/ervisio/plugins/docker`
   (created on first use; settings, registries, alerts, template sources).
 * **Network**: the plugin frame may fetch template lists from `raw.githubusercontent.com` and

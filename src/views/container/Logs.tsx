@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { docker, errorText } from '../../api/engine';
+import { currentCaps } from '../../api/environments';
 import { LogLines, type LogLine } from '../../api/streams';
 import { t, tn } from '../../i18n';
 import { Button, Icon, IconButton, Input, Segmented, Select, toast } from '../../kit';
@@ -83,6 +84,34 @@ export function LogsTab({ id, name, tty, running }: { id: string; name: string; 
         setVersion((n) => n + 1);
       }
     }, FLUSH_MS);
+    if (!currentCaps().live) {
+      // The Portainer agent holds a followed stream back until it ends: read the last lines again every 3 seconds.
+      let alive = true;
+      let to: ReturnType<typeof setTimeout> | undefined;
+      const { follow: _f, ...once } = query;
+      const poll = async () => {
+        try {
+          const r = await docker.request('GET', `/containers/${encodeURIComponent(id)}/logs`, { query: once });
+          if (!alive) return;
+          if (r.status >= 400) throw new Error(`Docker answered ${r.status}`);
+          buf.current = [];
+          const again = new LogLines(tty, true, (l) => buf.current.push(l));
+          again.push(r.bytes());
+          again.flush();
+          dirty.current = true;
+          setStatus('live');
+        } catch (e) {
+          if (alive) { setError(errorText(e)); setStatus('error'); }
+        }
+        if (alive) to = setTimeout(() => void poll(), 3000);
+      };
+      void poll();
+      return () => {
+        alive = false;
+        clearTimeout(to);
+        clearInterval(timer);
+      };
+    }
     const h = docker.stream('GET', `/containers/${encodeURIComponent(id)}/logs`, { query }, {
       onStart: () => setStatus('live'),
       onData: (c) => lines.push(c),

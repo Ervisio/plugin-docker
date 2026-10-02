@@ -1,6 +1,6 @@
 /** One shared /events stream, opened while at least one listener exists. Reconnects with a growing delay. */
 import { docker, type StreamHandle } from './engine';
-import { onEnvChange } from './environments';
+import { currentCaps, onEnvChange } from './environments';
 import { JsonLines } from './streams';
 import type { DockerEvent } from './types';
 
@@ -12,7 +12,8 @@ let failures = 0;
 let lastTime = 0;
 
 function connect(): void {
-  if (handle || !listeners.size) return;
+  // A Portainer agent holds streamed answers back: the stores poll, so there is nothing to wait for here.
+  if (handle || !listeners.size || !currentCaps().live) return;
   const lines = new JsonLines<DockerEvent>((ev) => {
     failures = 0;
     lastTime = ev.time || lastTime;

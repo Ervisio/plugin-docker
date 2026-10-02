@@ -48,6 +48,7 @@ const s: AreaStrings = {
     'envs.stack.binds': 'Bind mounts such as ./data or /srv/app name folders on {env}, not on this server. Create them there first.',
     'envs.stack.paired': 'Stack files of {env} are on that server and cannot be edited from here. You can start, stop, restart and remove the stacks it already runs; to create or edit one, open Ervisio on {env}.',
     'envs.stack.newOff': 'New stacks cannot be created on {env} from here',
+    'envs.stack.detectedRemote': 'This project was started outside this plugin and runs on {env}. You can start, stop, restart and take it down here. Its files stay where they are.',
     'envs.stack.noConfig': 'This project\'s files are on {env}, so its configuration cannot be shown here.',
 
     'container.noTerminal.shell': 'No terminal through this connection',
@@ -134,6 +135,7 @@ const s: AreaStrings = {
     'envs.stack.binds': 'I bind mount come ./data o /srv/app indicano cartelle su {env}, non su questo server. Creale prima là.',
     'envs.stack.paired': 'I file degli stack di {env} sono su quel server e non si possono modificare da qui. Puoi avviare, fermare, riavviare e rimuovere gli stack che già esegue; per crearne o modificarne uno apri Ervisio su {env}.',
     'envs.stack.newOff': 'Da qui non si possono creare nuovi stack su {env}',
+    'envs.stack.detectedRemote': 'Questo progetto è stato avviato fuori da questo plugin e gira su {env}. Puoi avviarlo, fermarlo, riavviarlo e spegnerlo da qui. I suoi file restano dove sono.',
     'envs.stack.noConfig': 'I file di questo progetto sono su {env}, quindi la sua configurazione non si può mostrare qui.',
 
     'container.noTerminal.shell': 'Nessun terminale con questa connessione',

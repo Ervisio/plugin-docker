@@ -445,7 +445,7 @@ function DetectedStack({ stack, reload }: { stack: Stack; reload(): Promise<void
           ) : (
             <>
               <b>{t('stacks.detected.title')}</b>
-              <p>{stack.dir ? t('stacks.detected.text', { dir: stack.dir }) : t('stacks.detected.textNoDir')}</p>
+              <p>{info ? t('envs.stack.detectedRemote', { env: info.name }) : stack.dir ? t('stacks.detected.text', { dir: stack.dir }) : t('stacks.detected.textNoDir')}</p>
             </>
           )}
         </div>

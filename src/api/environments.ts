@@ -19,6 +19,8 @@ export type EnvKind = PluginEnv['kind'];
 export interface EnvCaps {
   /** Terminal, attach and exec work (the Portainer agent drops upgraded connections: the core answers 501). */
   terminal: boolean;
+  /** Streamed answers (follow logs, stats, events) arrive as they are written. The Portainer agent holds them back, so the plugin polls instead. */
+  live: boolean;
   /** Compose files of managed stacks live on this machine under /opt/stacks (this server, or /opt/stacks/.envs/<id>/). */
   stacks: boolean;
   /** Where managed stacks live: '' for this server (/opt/stacks/<name>), '.envs/<id>/' for a tunnel environment. */
@@ -28,15 +30,15 @@ export interface EnvCaps {
 }
 
 export function capsOf(kind: EnvKind | undefined, id: string | undefined): EnvCaps {
-  if (!id || !kind) return { terminal: true, stacks: true, stackPrefix: '', remoteFiles: false };
+  if (!id || !kind) return { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false };
   switch (kind) {
     case 'ervisio':
       // The pairing relays calls and commands only; files stay on the other server, so its stacks cannot be edited here.
-      return { terminal: true, stacks: false, stackPrefix: '', remoteFiles: false };
+      return { terminal: true, live: true, stacks: false, stackPrefix: '', remoteFiles: false };
     case 'portainer-agent':
-      return { terminal: false, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
+      return { terminal: false, live: false, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
     default:
-      return { terminal: true, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
+      return { terminal: true, live: true, stacks: true, stackPrefix: `.envs/${id}/`, remoteFiles: true };
   }
 }
 

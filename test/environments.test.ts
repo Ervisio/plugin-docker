@@ -40,10 +40,12 @@ test.beforeEach(() => {
 });
 
 test('capabilities depend on the kind', () => {
-  assert.deepEqual(capsOf(undefined, undefined), { terminal: true, stacks: true, stackPrefix: '', remoteFiles: false });
+  assert.deepEqual(capsOf(undefined, undefined), { terminal: true, live: true, stacks: true, stackPrefix: '', remoteFiles: false });
   assert.equal(capsOf('ssh', 'env-aaaaaaaa').stackPrefix, '.envs/env-aaaaaaaa/');
   assert.equal(capsOf('tcp-tls', 'env-dddddddd').terminal, true);
   assert.equal(capsOf('portainer-agent', 'env-cccccccc').terminal, false);
+  assert.equal(capsOf('portainer-agent', 'env-cccccccc').live, false);
+  assert.equal(capsOf('ssh', 'env-aaaaaaaa').live, true);
   assert.equal(capsOf('portainer-agent', 'env-cccccccc').stacks, true);
   // a paired server keeps its own stack files: nothing to edit here
   assert.equal(capsOf('ervisio', 'env-bbbbbbbb').stacks, false);

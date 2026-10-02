@@ -27,7 +27,7 @@ export function PageHeader({ icon, hue = 'file', title, subtitle, actions, back:
       <span className="dk-ph-ic"><Icon name={icon} /></span>
       <div className="dk-ph-tx">
         <h1>{title}</h1>
-        {(subtitle || where) && <p>{where && <b className="dk-ph-env">{where}</b>}{where && subtitle ? ' · ' : ''}{subtitle}</p>}
+        {(subtitle || where) && <p>{where && <b className="dk-ph-env">{where}</b>}{where && typeof subtitle === 'string' ? ' · ' : ''}{subtitle}</p>}
       </div>
       {actions && <div className="dk-ph-act">{actions}</div>}
     </header>

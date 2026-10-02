@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useAlertEngine } from '../api/alerts';
 import { envList } from '../api/envList';
 import { KIND_HUE, KIND_ICON } from '../api/envHealth';
@@ -58,14 +58,14 @@ export function App() {
   const blocked = !cs.data && cs.error && !OFFLINE_OK.includes(section);
 
   // With more than this server, the plugin starts on the Environments page. Decided once, when the list first arrives.
-  const decided = useRef(false);
+  const [decided, setDecided] = useState(false);
   const ready = envs !== undefined || !!envError;
   useEffect(() => {
-    if (!ready || decided.current) return;
-    decided.current = true;
+    if (!ready || decided) return;
     if (envs && envs.length > 0 && route.view === 'containers' && !env) navigate({ view: 'environments' }, { root: true });
-  }, [ready, envs, route.view, env]);
-  if (!ready || !decided.current) {
+    setDecided(true);
+  }, [ready, decided, envs, route.view, env]);
+  if (!ready || !decided) {
     return <div className="dk-root hue-file"><div className="dk-shell"><Skeleton height={220} style={{ borderRadius: 18, width: 220 }} /><div className="dk-main"><Skeleton height={60} style={{ borderRadius: 18 }} /><Skeleton height={260} style={{ borderRadius: 18 }} /></div></div></div>;
   }
   const home = route.view === 'environments';

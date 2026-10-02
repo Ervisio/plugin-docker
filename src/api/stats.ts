@@ -1,6 +1,6 @@
 /** Stats math and the shared per-container stats streams. */
 import { docker, type StreamHandle } from './engine';
-import { onEnvChange } from './environments';
+import { currentCaps, onEnvChange } from './environments';
 import { JsonLines } from './streams';
 import type { StatPoint, StatsRaw } from './types';
 
@@ -75,6 +75,8 @@ interface Entry {
 const entries = new Map<string, Entry>();
 let open = 0;
 
+const POLL_MS = 5000;
+
 function connect(e: Entry): void {
   if (e.handle || open >= MAX_STREAMS) return;
   open++;
@@ -97,6 +99,24 @@ function connect(e: Entry): void {
     e.prev = undefined;
     if (e.listeners.size && ++e.failures <= 5) e.retry = setTimeout(() => connect(e), 3000 * e.failures);
   };
+  if (!currentCaps().live) {
+    // Streams are held back (Portainer agent): one sample at a time instead, five seconds apart.
+    let alive = true;
+    const poll = () => {
+      if (!alive) return;
+      docker.get<StatsRaw>(`/containers/${e.id}/stats`, { stream: 'false' }).then(
+        (raw) => {
+          if (!alive) return;
+          lines.push(new TextEncoder().encode(JSON.stringify(raw) + '\n'));
+          e.retry = setTimeout(poll, POLL_MS);
+        },
+        () => { if (alive) e.retry = setTimeout(poll, POLL_MS * 2); },
+      );
+    };
+    poll();
+    e.handle = { close: () => { alive = false; clearTimeout(e.retry); } };
+    return;
+  }
   e.handle = docker.stream('GET', `/containers/${e.id}/stats`, { query: { stream: 'true' } }, {
     onData: (c) => lines.push(c),
     onEnd: done,
