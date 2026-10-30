@@ -1,6 +1,6 @@
 /**
  * What the plugin remembers about a stack that was cloned from Git: `/opt/stacks/<name>/.ervisio-git.json`. It holds no
- * secret (tokens and keys live in the user's private plugin folder, see git.ts). Pure code, no SDK.
+ * secret (tokens and keys live in /opt/stacks/.ervisio-git, see git.ts). Pure code, no SDK.
  */
 export const GIT_META_FILE = '.ervisio-git.json';
 
@@ -128,8 +128,13 @@ export function parseStatus(out: string): string[] {
 export function explainGitError(stderr: string): { key: string; detail: string } {
   const e = stderr.trim();
   const last = e.split('\n').filter(Boolean).slice(-2).join(' ');
-  if (/could not read (Username|Password)|Authentication failed|HTTP 40[13]|returned error: 40[13]|terminal prompts disabled/i.test(e)) return { key: 'git.err.auth', detail: last };
-  if (/Permission denied \(publickey|Host key verification failed|no such identity|Load key/i.test(e)) return { key: 'git.err.ssh', detail: last };
+  // git asked for a login and had none: no token was chosen, or the saved one could not be read.
+  if (/could not read (Username|Password)|terminal prompts disabled/i.test(e)) return { key: 'git.err.noLogin', detail: last };
+  // A login was sent and the repository refused it.
+  if (/Authentication failed|Invalid username or (password|token)|HTTP 40[13]|returned error: 40[13]/i.test(e)) return { key: 'git.err.auth', detail: last };
+  if (/UNPROTECTED PRIVATE KEY FILE|bad permissions/i.test(e)) return { key: 'git.err.keyPerm', detail: last };
+  // Not "no such identity" or "Identity file ... not accessible": ssh says that for the fallback -i of older stacks too.
+  if (/Permission denied \(publickey|Host key verification failed|Load key/i.test(e)) return { key: 'git.err.ssh', detail: last };
   if (/not found|does not exist|Repository not found|returned error: 404/i.test(e)) return { key: 'git.err.notFound', detail: last };
   if (/Could not resolve host|Connection refused|timed out|Network is unreachable|Failed to connect/i.test(e)) return { key: 'git.err.network', detail: last };
   if (/Remote branch .* not found|couldn't find remote ref/i.test(e)) return { key: 'git.err.ref', detail: last };

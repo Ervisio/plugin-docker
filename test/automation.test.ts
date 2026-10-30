@@ -7,6 +7,7 @@ import {
   urlKind, validFile, validRef, validUrl, metaText,
 } from '../src/api/gitMeta.ts';
 import { parseBackupList, validKeep } from '../src/api/backups.ts';
+import { GIT_AUTH_DIR } from '../src/api/git.ts';
 
 const manifest = JSON.parse(readFileSync(new URL('../plugin/manifest.json', import.meta.url), 'utf8'));
 const cmd = (name: string) => manifest.capabilities.commands.find((c: { name: string }) => c.name === name);
@@ -37,13 +38,53 @@ test('every job step names a declared command with one argument per declared slo
 });
 
 test('git commands carry the safety options and never take a secret as an argument', () => {
-  for (const c of manifest.capabilities.commands.filter((x: { name: string }) => x.name.startsWith('git-') && x.name !== 'git-version')) {
+  const gitCmds = manifest.capabilities.commands.filter((x: { name: string }) => x.name.startsWith('git-') && x.name !== 'git-version' && !x.name.startsWith('git-auth-'));
+  assert.equal(gitCmds.length, 8);
+  for (const c of gitCmds) {
     const a: string[] = c.argv;
     assert.ok(a.includes('protocol.allow=never'), c.name);
     assert.ok(a.includes('protocol.https.allow=always') && a.includes('protocol.ssh.allow=always'), c.name);
     assert.ok(!a.some((x) => /^protocol\.file/.test(x)) && !a.some((x) => x.includes('ext')), c.name);
-    assert.ok(a.some((x) => x.startsWith('credential.helper=store --file ~/.config/ervisio/plugins/docker/git/{0}.cred')), c.name);
-    assert.ok(a.some((x) => x.includes('IdentitiesOnly=yes')), c.name);
+    // The login files: the admin folder first, the old ~ folder as a fallback, in that order.
+    const reset = a.indexOf('credential.helper=');
+    const fresh = a.indexOf('credential.helper=store --file /opt/stacks/.ervisio-git/{0}.cred');
+    const legacy = a.indexOf('credential.helper=!f() { [ "$1" != get ] || git credential-store --file ~/.config/ervisio/plugins/docker/git/{0}.cred get; }; f');
+    assert.ok(reset >= 0 && reset < fresh && fresh < legacy, c.name);
+    // The fallback only answers "get": git sends store and erase to every helper, and a plain store helper would copy
+    // the token into the ~ folder of whoever runs git (root for an administrator), where removeCredentials never looks.
+    assert.ok(a[legacy].startsWith('credential.helper=!'), c.name);
+    assert.ok(a[legacy].includes('[ "$1" != get ] ||'), c.name);
+    assert.ok(!a.includes('credential.helper=store --file ~/.config/ervisio/plugins/docker/git/{0}.cred'), c.name);
+    const ssh = a.find((x) => x.startsWith('core.sshCommand='));
+    assert.ok(ssh, c.name);
+    const i1 = ssh.indexOf('-i /opt/stacks/.ervisio-git/{0}.key');
+    const i2 = ssh.indexOf('-i ~/.config/ervisio/plugins/docker/git/{0}.key');
+    assert.ok(i1 >= 0 && i1 < i2, c.name);
+    assert.ok(ssh.includes('IdentitiesOnly=yes') && ssh.includes('BatchMode=yes'), c.name);
+    assert.ok(a.includes('core.askPass='), c.name);
+  }
+});
+
+test('git-auth-init and git-auth-lock: admin commands on the login folder, the lock takes only "<stack>.cred|.key"', () => {
+  const init = cmd('git-auth-init');
+  const lock = cmd('git-auth-lock');
+  for (const c of [init, lock]) {
+    assert.ok(c, 'declared');
+    assert.equal(c.admin, true);
+    assert.equal(c.adminUnlessGroup, 'docker');
+  }
+  assert.ok(init.argv.includes(GIT_AUTH_DIR));
+  assert.deepEqual(init.args, []);
+  assert.deepEqual(lock.argv, ['chmod', '600', '--', `${GIT_AUTH_DIR}/{0}`]);
+  const re = new RegExp(`^(?:${lock.args[0].pattern})$`);
+  for (const ok of ['web.cred', 'my-app.key', 'a_1.cred']) assert.ok(re.test(ok), ok);
+  for (const bad of ['../x.cred', 'a/b.key', 'x.txt', '.cred', '-x.key', 'web.cred.bak', 'Web.key', '']) assert.ok(!re.test(bad), bad);
+});
+
+test('the login folder of git.ts is the one of the manifest', () => {
+  assert.equal(GIT_AUTH_DIR, '/opt/stacks/.ervisio-git');
+  for (const c of manifest.capabilities.commands.filter((x: { name: string }) => x.name.startsWith('git-') && x.name !== 'git-version')) {
+    assert.ok(c.argv.some((x: string) => x.includes(`${GIT_AUTH_DIR}`)), c.name);
   }
 });
 
@@ -96,7 +137,15 @@ test('git log and status output', () => {
 });
 
 test('git errors are explained', () => {
-  assert.equal(explainGitError("fatal: could not read Username for 'https://x': No such device or address").key, 'git.err.auth');
+  assert.equal(explainGitError("fatal: could not read Username for 'https://github.com': No such device or address").key, 'git.err.noLogin');
+  assert.equal(explainGitError('fatal: could not read Password for \'https://me@x\': terminal prompts disabled').key, 'git.err.noLogin');
+  assert.equal(explainGitError("remote: Invalid username or token.\nfatal: Authentication failed for 'https://github.com/o/r.git/'").key, 'git.err.auth');
+  assert.equal(explainGitError('error: The requested URL returned error: 403').key, 'git.err.auth');
+  assert.equal(explainGitError('@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @\nPermissions 0644 for \'/opt/stacks/.ervisio-git/x.key\' are too open.\nLoad key "/opt/stacks/.ervisio-git/x.key": bad permissions\ngit@github.com: Permission denied (publickey).').key, 'git.err.keyPerm');
+  assert.equal(explainGitError('Warning: Identity file /home/u/.config/ervisio/plugins/docker/git/x.key not accessible: No such file or directory.\ngit@github.com: Permission denied (publickey).').key, 'git.err.ssh');
+  // The warning about the fallback key of older stacks alone does not decide what went wrong.
+  assert.equal(explainGitError('Warning: Identity file /home/u/.config/ervisio/plugins/docker/git/x.key not accessible: No such file or directory.\nssh: Could not resolve hostname h: Name or service not known\nfatal: Could not read from remote repository.').key, 'git.err.network');
+  assert.equal(explainGitError('Warning: Identity file /home/u/.config/ervisio/plugins/docker/git/x.key not accessible: No such file or directory.\nfatal: Could not read from remote repository.').key, 'git.err.other');
   assert.equal(explainGitError('git@h: Permission denied (publickey).').key, 'git.err.ssh');
   assert.equal(explainGitError("fatal: repository 'https://x/y/' not found").key, 'git.err.notFound');
   assert.equal(explainGitError('fatal: Could not resolve host: x').key, 'git.err.network');

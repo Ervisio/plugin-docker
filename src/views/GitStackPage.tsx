@@ -63,7 +63,7 @@ export function GitStackPage() {
     try {
       await storeCredentials(name, url.trim(), secretFor());
       try {
-        const r = await lsRemote(name, url.trim());
+        const r = await lsRemote(name, url.trim(), secret.trim() ? auth : 'none');
         setRefs(r);
         if (!ref) setRef(r.head ?? r.branches[0] ?? '');
       } finally {

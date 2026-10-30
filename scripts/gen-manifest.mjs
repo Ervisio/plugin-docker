@@ -46,16 +46,29 @@ const P_CONTAINER = { pattern: '[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}', maxLen: 128 }
 const P_VOLUME = P_CONTAINER;
 const P_IMAGE = { pattern: '[a-z0-9][a-z0-9._/-]{0,127}(:[A-Za-z0-9._-]{1,128})?', maxLen: 256 };
 const P_KEEP = { pattern: '[1-9][0-9]{0,2}', maxLen: 3 };
+/** A login file of a stack: "<stack name>.cred" or "<stack name>.key" (no "/" and no leading dot). */
+const P_AUTH_FILE = { pattern: '[a-z0-9][a-z0-9_-]{0,62}\\.(cred|key)', maxLen: 67 };
 
 /* ---------- Git ---------- */
 
+/** Folder of the Git logins: the same path as GIT_AUTH_DIR in src/api/git.ts (a test keeps them equal). */
+export const GIT_AUTH_DIR = `${STACKS}/.ervisio-git`;
+/** Where logins were kept before they moved to GIT_AUTH_DIR. Still read, so older stacks keep working. */
 const CRED = '~/.config/ervisio/plugins/docker/git/{0}';
 /**
  * Every git call carries the same options. Only http(s) and ssh may be used (no file://, git://, ext::). Secrets are read
- * from files in the user's private plugin folder: an https token through git's "store" helper, a deploy key through
- * ssh -i. Nothing secret is ever an argument. git and ssh expand ~ themselves (they start these helpers through a
- * shell), so the same argv works for every user.
+ * from files: an https token through git's "store" helper, a deploy key through ssh -i. Nothing secret is ever an
+ * argument. The files live in an absolute folder inside /opt/stacks because the git commands are admin commands: for a
+ * user outside the docker group they run as root on the root bridge, where ~ is root's home, while the plugin's writes
+ * to a ~ folder always land in the user's own home. /opt/stacks follows the same identity rule as the commands, so the
+ * account that writes a login is the account that reads it. The ~ entries come second (git asks the helpers in order,
+ * ssh only warns about a missing -i file) so stacks added before this change still find their login.
+ * The ~ helper is read-only: git sends "store" after a successful login and "erase" after a refused one to every helper,
+ * and a plain store helper would then write the token into the ~ folder of whoever runs git (root for an administrator),
+ * a copy removeCredentials never deletes. So it is a shell helper (git runs a "!" helper through sh with the action as
+ * $1, and that sh expands ~) that answers only "get" and does nothing, successfully, for anything else.
  */
+const LEGACY_HELPER = `!f() { [ "$1" != get ] || git credential-store --file ${CRED}.cred get; }; f`;
 const GIT = [
   'git',
   '-c', 'protocol.allow=never',
@@ -63,8 +76,9 @@ const GIT = [
   '-c', 'protocol.http.allow=always',
   '-c', 'protocol.ssh.allow=always',
   '-c', 'credential.helper=',
-  '-c', `credential.helper=store --file ${CRED}.cred`,
-  '-c', `core.sshCommand=ssh -i ${CRED}.key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new`,
+  '-c', `credential.helper=store --file ${GIT_AUTH_DIR}/{0}.cred`,
+  '-c', `credential.helper=${LEGACY_HELPER}`,
+  '-c', `core.sshCommand=ssh -i ${GIT_AUTH_DIR}/{0}.key -i ${CRED}.key -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new`,
   '-c', 'core.askPass=',
   '-c', 'http.lowSpeedLimit=1000',
   '-c', 'http.lowSpeedTime=60',
@@ -85,6 +99,8 @@ const commands = [
   cmd('git-reset', 'Move the stack repository to the commit of the last fetch (replaces local edits)', [...GIT, ...IN_STACK, 'reset', '--hard', 'FETCH_HEAD'], [P_NAME], { ...priv, timeoutSec: 60 }),
   cmd('git-info', 'Describe the commit the stack repository is at', [...GIT, ...IN_STACK, 'log', '-1', '--format=%H%x1f%an%x1f%aI%x1f%s'], [P_NAME], { ...priv, timeoutSec: 30 }),
   cmd('git-status', 'List local edits of tracked files in the stack repository', [...GIT, ...IN_STACK, 'status', '--porcelain', '--untracked-files=no'], [P_NAME], { ...priv, timeoutSec: 30 }),
+  cmd('git-auth-init', 'Create the private folder of Git logins in /opt/stacks (root and the docker group only)', ['install', '-d', '-m', '2770', '-g', 'docker', GIT_AUTH_DIR], [], { ...priv, timeoutSec: 15 }),
+  cmd('git-auth-lock', 'Make a Git login file readable only by its owner (ssh refuses a key others can read)', ['chmod', '600', '--', `${GIT_AUTH_DIR}/{0}`], [P_AUTH_FILE], { ...priv, timeoutSec: 15 }),
 ];
 
 /* ---------- compose for a stack whose compose file is not /opt/stacks/<name>/compose.yaml ---------- */

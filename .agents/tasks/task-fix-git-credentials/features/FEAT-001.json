@@ -1,0 +1,25 @@
+{
+  "id": "FEAT-001",
+  "type": "chore",
+  "description": "Baseline: install dependencies and confirm generator check, typecheck and tests are green before changing anything.",
+  "status": "blocked",
+  "steps": [
+    "In d:\\Projects\\plugin-docker run `npm ci` (fall back to `npm install` if ci fails). Note whether @ervisio/plugin-sdk ends up in node_modules.",
+    "Run `node scripts/gen-manifest.mjs --check`.",
+    "Run `npm run typecheck`.",
+    "Run `npm test`.",
+    "Record in findings which commands pass/fail and any pre-existing failures (do not fix unrelated failures)."
+  ],
+  "acceptance_criteria": [
+    "Baseline results of gen-manifest --check, typecheck and npm test are recorded in findings"
+  ],
+  "verification": [
+    "npm run typecheck",
+    "npm test"
+  ],
+  "blocked_reason": {
+    "retryable": false,
+    "detail": "The shell tool cannot start any process under the OS sandbox: every command (git status, git log, cmd /c, npm test, with and without cwd=d:\\Projects\\plugin-docker) fails with 'InitializeDefaultDrives ... provider FileSystem ... DriveNotFoundException'. npm ci, gen-manifest --check, typecheck and npm test could not be run. node_modules is not present in the workspace (no node_modules/typescript nor node_modules/@ervisio/plugin-sdk found via file search), so dependencies are not installed."
+  },
+  "findings": "Baseline not executed: shell sandbox broken (DriveNotFound for FileSystem provider) for all commands. node_modules absent (typescript and @ervisio/plugin-sdk not installed). Subsequent features can still edit files with file tools, but verification (gen-manifest regeneration, typecheck, tests) must be run by the user or in an environment where the shell works. Note: plugin/manifest.json generated entries cannot be regenerated here; any gen-manifest.mjs change would need a careful hand-mirrored manifest edit or a user-run `node scripts/gen-manifest.mjs`."
+}

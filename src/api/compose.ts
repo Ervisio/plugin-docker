@@ -65,7 +65,7 @@ export const stackArgs = (name: string): string[] => [name, currentCaps().stackP
 export const canManageStacks = (): boolean => currentCaps().stacks;
 export const isValidStackName = (name: string): boolean => STACK_NAME_RE.test(name);
 
-const isNotFound = (e: unknown): boolean => {
+export const isNotFound = (e: unknown): boolean => {
   const c = (e as PluginError | undefined)?.code;
   return c === 'not_found' || /no such file|not exist|not found|ENOENT/i.test((e as Error)?.message ?? '');
 };

@@ -203,7 +203,7 @@ export async function importStack(c: PortainerContainer, s: PStack, all: Contain
   } catch (e) {
     if (e instanceof GitError) {
       const skipped = !!s.git?.password && !opts.withLogin;
-      return { name: s.name, status: 'failed', note: skipped && e.key === 'git.err.auth' ? t('pt.git.needsLogin') : t(e.key) + (e.detail && e.key === 'git.err.other' ? ` (${e.detail})` : '') };
+      return { name: s.name, status: 'failed', note: skipped && (e.key === 'git.err.auth' || e.key === 'git.err.noLogin') ? t('pt.git.needsLogin') : t(e.key) + (e.detail && e.key === 'git.err.other' ? ` (${e.detail})` : '') };
     }
     return { name: s.name, status: 'failed', note: (e as Error).message };
   }

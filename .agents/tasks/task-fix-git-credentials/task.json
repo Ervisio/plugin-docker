@@ -1,0 +1,16 @@
+{
+  "task_id": "task-fix-git-credentials",
+  "task_description": "Git stacks: the https token and the deploy key never reach git ('fatal: could not read Username for https://github.com'). Store the credentials where the admin git commands (which may run as root on the root bridge) can read them, fix deploy key file mode, keep old stacks working, keep gen-manifest.mjs and manifest.json in sync, distinguish a missing login from a refused one, add tests.",
+  "status": "blocked",
+  "feature_order": ["FEAT-001", "FEAT-002"],
+  "blocked_reason": {
+    "retryable": true,
+    "detail": "All code is written and the semantic review (v1) is APPROVED, but nothing could be executed: the shell tool fails for every command in this sandbox (InitializeDefaultDrives / DriveNotFoundException) and node_modules is not installed. plugin/manifest.json was hand-mirrored. Still to run on a working machine: npm ci; node scripts/gen-manifest.mjs --check (if it fails run node scripts/gen-manifest.mjs and inspect the diff); npm run typecheck; npm test; npm run build."
+  },
+  "verification": {
+    "build": "fail",
+    "tests": "fail",
+    "test_quality": "pass",
+    "summary": "Build and tests NOT RUN (shell unavailable), recorded as fail for that reason only. Test code reviewed by reading: test/gitcreds.test.ts drives storeCredentials/removeCredentials/lsRemote through an SDK mock (write-then-lock order, git-auth-init only when missing, file removed on lock failure, no {env} on login files with a paired server selected, credMissing vs noLogin vs ssh incl. legacy key and list failure); test/automation.test.ts asserts helper order, read-only legacy helper, ssh -i order, git-auth-* commands and their pattern, GIT_AUTH_DIR equality, and new explainGitError cases. These would fail if the manifest paths or storeCredentials behaviour were reverted. Review: .agents/tasks/task-fix-git-credentials/2026-10-03-120000-review.md (v1, APPROVED); confirmed issues 1 and 2 fixed afterwards, issue 3 documented."
+  }
+}

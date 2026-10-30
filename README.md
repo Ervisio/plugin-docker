@@ -34,8 +34,9 @@ The manifest is [plugin/manifest.json](plugin/manifest.json). In short:
   server in `/opt/stacks/.envs/<environment id>/<name>/` (compose runs here with `-H`), so the stack commands take the
   folder prefix as a second argument. A paired Ervisio server keeps its stack files on itself (the pairing relays
   calls and commands, not file access).
-* **Folders**: `/opt/stacks` (read and write, `admin`, for Compose stacks) and `~/.config/ervisio/plugins/docker`
-  (created on first use; settings, registries, alerts, template sources).
+* **Folders**: `/opt/stacks` (read and write, `admin`, for Compose stacks; the logins of Git stacks live in
+  `/opt/stacks/.ervisio-git`, root and the docker group only, files mode 600, because the Git commands may run as
+  root) and `~/.config/ervisio/plugins/docker` (created on first use; settings, registries, alerts, template sources).
 * **Network**: the plugin frame may fetch template lists from `raw.githubusercontent.com` and
   `gist.githubusercontent.com`.
 * **Visible to** members of `docker`, `wheel` and `sudo` (administrators always see it).

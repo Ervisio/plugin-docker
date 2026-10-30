@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Stacks
+
+* Git logins (access token and deploy key) now reach git also when the Git commands run with administrator rights.
+  Before, the login was saved in your home folder while git, running as root, looked in root's home, so a correct
+  token failed with "could not read Username" and a deploy key was never found. Logins are now kept in
+  `/opt/stacks/.ervisio-git` (root and the docker group only) with mode 600, which ssh needs for a key. Stacks added
+  before keep working with their old login file, which is now only read and never written again. If one still fails,
+  delete the stack and add it again with New stack from Git, the only place where a login is entered (or detach it
+  from Git and add it under another name, since a detached stack keeps its folder). Each login file belongs to the
+  account that saved it: Check and Update of a stack work for that account (and for the scheduled jobs, which run as
+  the stack's owner).
+* Clearer messages: a login that never reached the repository, a saved login that is missing on this server, a login
+  the repository refused, and a deploy key file that others could read are now told apart.
+
 ## 2.2.0
 
 2026-10-02. Needs Ervisio 0.5 or later (`minCore` is 0.5.0).
