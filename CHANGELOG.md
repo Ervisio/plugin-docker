@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.2.1 - 2026-10-30
+
+- Fix Node 24 test discovery for plugin releases
+- fix
+- Run CI manually instead of on every push and pull request
+- Add one-command plugin release and marketplace registration (#2)
+- README: one-button releases
+- One-button releases with the SDK's release workflow
+
 ## Unreleased
 
 ### Stacks
