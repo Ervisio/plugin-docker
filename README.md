@@ -13,6 +13,9 @@ In Ervisio, open Plugins › Browse, find Docker and choose Install. The dialog 
 is signed with the Ervisio team key and Ervisio verifies the signature before installing. Updates appear in
 Plugins › Updates.
 
+This version requires Ervisio **0.7.0 or newer**. In ErvisiOS, Docker opens its native desktop workspace; Classic keeps
+the existing page. Containers, stacks, logs, terminals, files and environments use the same real APIs in both views.
+
 ## Permissions
 
 The manifest is [plugin/manifest.json](plugin/manifest.json). In short:
@@ -83,7 +86,7 @@ React is not bundled. The preset in `vite.config.ts` aliases `react` and the JSX
 plugin/manifest.json  the manifest (unsigned; the registry adds "files" and signs)
 plugin/templates.json the curated template catalog, shipped and signed with the plugin
 src/index.ts          activate: sets SDK and React, strings, styles, icons; registers the page and the widget
-src/sdk.ts            SDK v3 types and getSdk() (re-exported from @ervisio/plugin-sdk)
+src/sdk.ts            SDK v4 types and getSdk() (re-exported from @ervisio/plugin-sdk 0.4.0)
 src/kit.ts            typed wrappers for the app's UI kit
 src/router.ts         in-plugin router (Route type, navigate, back, useRoute, search box state)
 src/api/              Docker Engine client and data layer

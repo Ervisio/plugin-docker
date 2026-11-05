@@ -255,7 +255,7 @@ const ownCmds = new Set(commands.map((c) => c.name));
 caps.commands = [...caps.commands.filter((c) => !ownCmds.has(c.name)), ...commands];
 caps.jobs = jobs;
 caps.notify = true;
-manifest.minCore = '0.5.0';
+manifest.minCore = '0.7.0';
 
 const text = JSON.stringify(manifest, null, 2) + '\n';
 if (process.argv.includes('--check')) {

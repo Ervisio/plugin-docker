@@ -10,8 +10,9 @@ import { appOrigin } from '../src/api/appOrigin.ts';
 
 const manifest = JSON.parse(readFileSync(new URL('../plugin/manifest.json', import.meta.url), 'utf8'));
 
-test('the manifest asks for core 0.5.0 and every step timeout fits its job and the core limit', () => {
-  assert.equal(manifest.minCore, '0.5.0');
+test('the native manifest asks for core 0.7.0 and every step timeout fits its job and the core limit', () => {
+  assert.equal(manifest.minCore, '0.7.0');
+  assert.equal(manifest.contributes.pages[0].ervisios.view, 'docker-ervisios');
   for (const job of manifest.capabilities.jobs) {
     for (const s of job.steps) {
       if (s.timeoutSec === undefined) continue;
