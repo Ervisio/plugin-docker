@@ -2,6 +2,12 @@ import type { AreaStrings } from '..';
 
 const s: AreaStrings = {
   en: {
+    'nav.environments': 'Environments',
+    'desktop.refresh': 'Refresh Docker data',
+    'desktop.connecting': 'Connecting to Docker…',
+    'desktop.disconnected': 'Docker is unavailable',
+    'desktop.running': '{running} of {total} containers running',
+    'desktop.surface': 'ErvisiOS application',
     'nav.workloads': 'Workloads',
     'nav.resources': 'Resources',
     'nav.tools': 'Tools',
@@ -22,6 +28,12 @@ const s: AreaStrings = {
     'shell.oldSdk.text': 'Docker 2 needs plugin SDK version 3 or newer. Update Ervisio, then reload.',
   },
   it: {
+    'nav.environments': 'Ambienti',
+    'desktop.refresh': 'Aggiorna dati Docker',
+    'desktop.connecting': 'Connessione a Docker…',
+    'desktop.disconnected': 'Docker non disponibile',
+    'desktop.running': '{running} container attivi su {total}',
+    'desktop.surface': 'Applicazione ErvisiOS',
     'nav.workloads': 'Carichi',
     'nav.resources': 'Risorse',
     'nav.tools': 'Strumenti',

@@ -1,0 +1,50 @@
+/* Native desktop view. The classic application keeps its existing layout. */
+.dk-native { height: 100vh; min-height: 0; display: flex; flex-direction: column; padding: 0; background: var(--surface); overflow: hidden; }
+.dk-native-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 18px; background: color-mix(in srgb, var(--sunk) 68%, transparent); flex: none; }
+.dk-native-location, .dk-native-actions { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.dk-native-location > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dk-native-location strong { font-size: 15px; font-weight: 700; }
+.dk-native-location > div > span { color: var(--ink2); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dk-native-brand { width: 32px; height: 32px; display: grid; place-items: center; color: var(--h-file); background: var(--h-file-s); border-radius: 9px; flex: none; }
+.dk-native-brand .ui-icon { width: 20px; height: 20px; }
+.dk-native .dk-shell { flex: 1; min-height: 0; gap: 0; align-items: stretch; flex-direction: row; }
+.dk-native .dk-nav { position: static; width: 190px; overflow-y: auto; border-radius: 0; background: color-mix(in srgb, var(--sunk) 44%, var(--surface)); padding: 12px 8px; gap: 2px; }
+.dk-native .dk-nav-gl { font-size: 11px; font-weight: 600; margin: 14px 12px 4px; }
+.dk-native .dk-nav-it { min-height: 35px; padding: 8px 10px; border-radius: 7px; font-size: 12px; font-weight: 500; }
+.dk-native .dk-nav-it .ui-icon { width: 15px; height: 15px; }
+.dk-native .dk-nav-it[aria-current='page'] { position: relative; background: var(--acc-s); color: var(--ink); }
+.dk-native .dk-nav-it[aria-current='page']::before { content: ''; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; background: var(--acc); border-radius: 2px; }
+.dk-native .dk-nav-ft { display: none; }
+.dk-native .dk-main { min-height: 0; gap: 0; }
+.dk-native .dk-top { padding: 12px 18px; gap: 20px; }
+.dk-native-path { display: flex; align-items: center; gap: 8px; min-width: 100px; font-size: 13px; }
+.dk-native-path .ui-icon { color: var(--acc); width: 16px; height: 16px; }
+.dk-native-path b { padding: 2px 6px; border-radius: 5px; color: var(--ink2); background: var(--sunk); font-size: 11px; font-weight: 500; }
+.dk-native .dk-search { flex: 1; margin-left: auto; max-width: 340px; }
+.dk-native .dk-search .ui-in { border-radius: 7px; }
+.dk-native .dk-view { padding: 16px 20px 24px; min-height: 0; overflow: auto; flex: 1; }
+.dk-native .dk-ph { gap: 10px; margin-bottom: 16px; }
+.dk-native .dk-ph-ic { width: 34px; height: 34px; border-radius: 8px; }
+.dk-native .dk-ph-ic .ui-icon { width: 18px; height: 18px; }
+.dk-native .dk-ph h1 { font-size: 21px; font-weight: 700; }
+.dk-native .dk-ph-tx p { font-size: 12px; }
+.dk-native .dk-card { border-radius: 10px; }
+.dk-native-status { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 8px 18px; flex: none; color: var(--ink2); background: var(--sunk); font-size: 11px; }
+.dk-native-status > span:last-child { margin-left: auto; color: var(--ink3); }
+@media (min-width: 721px) and (max-width: 900px) {
+  .dk-native .dk-nav { flex-direction: column; scrollbar-width: thin; }
+  .dk-native .dk-nav-gl { display: block; }
+  .dk-native .dk-nav-it { width: 100%; background: transparent; }
+  .dk-native .dk-nav-it[aria-current='page'] { background: var(--acc-s); }
+}
+@media (max-width: 720px) {
+  .dk-native .dk-shell { flex-direction: column; }
+  .dk-native .dk-nav { flex-direction: row; width: 100%; padding: 8px; flex: none; overflow-x: auto; }
+  .dk-native .dk-nav-gl, .dk-native .dk-nav-env, .dk-native .dk-nav-env-add { display: none; }
+  .dk-native .dk-nav-it { padding: 7px 10px; width: auto; }
+  .dk-native .dk-top { gap: 10px; padding: 10px 12px; flex-wrap: wrap; }
+  .dk-native .dk-search { min-width: 160px; }
+  .dk-native .dk-view { padding: 12px; }
+  .dk-native-actions .ui-btn:not(.ui-btn--icon) { font-size: 12px; }
+  .dk-native-status > span:last-child { display: none; }
+}

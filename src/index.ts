@@ -16,6 +16,10 @@ function TooOld() {
   return createElement(EmptyState, { icon: 'alert', hue: 'svc', title: t('shell.oldSdk.title'), text: t('shell.oldSdk.text') });
 }
 
+function DesktopDocker() {
+  return createElement(App, { native: true });
+}
+
 export default function activate(sdk: PluginSDK): void {
   setSdk(sdk);
   setReact(sdk.react);
@@ -24,5 +28,6 @@ export default function activate(sdk: PluginSDK): void {
   registerDockerIcons();
   const ok = sdk.version >= 3;
   sdk.registerPage('docker', ok ? App : TooOld);
+  sdk.registerPage('docker-ervisios', ok ? DesktopDocker : TooOld);
   sdk.registerWidget({ id: 'containers', render: ok ? ContainersWidget : TooOld });
 }

@@ -2454,6 +2454,9 @@
       {
         "icon": "server",
         "id": "docker",
+        "ervisios": {
+          "view": "docker-ervisios"
+        },
         "title": "Docker"
       }
     ],

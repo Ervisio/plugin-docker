@@ -7,8 +7,8 @@ import { containers, images, info, networks, volumes } from '../api/resources';
 import { resetEngine } from '../api/engine';
 import { groupByStack } from '../api/model';
 import { t } from '../i18n';
-import { Icon, IconButton, Input, Skeleton } from '../kit';
-import { navigate, sectionOf, setSearch, useRoute, useSearch, type NavId } from '../router';
+import { Button, Icon, IconButton, Input, Skeleton } from '../kit';
+import { back, navigate, sectionOf, setSearch, useCanGoBack, useRoute, useSearch, type NavId } from '../router';
 import { openCoreSettings } from '../views/EnvironmentsPage';
 import { ErrorState } from '../ui/ErrorState';
 import { NAV_ICONS } from '../ui/icons';
@@ -28,7 +28,7 @@ const OFFLINE_OK: NavId[] = ['registries', 'settings', 'environments', 'activity
 const GLOBAL_VIEWS: NavId[] = ['environments', 'activity'];
 
 /** The page: inner sidebar, search box, and the view for the current route. */
-export function App() {
+export function App({ native = false }: { native?: boolean }) {
   useAlertEngine();
   const route = useRoute();
   const { data: envs, error: envError } = envList.use();
@@ -40,6 +40,14 @@ export function App() {
   const vols = volumes.use();
   const nets = networks.use();
   const eng = info.use();
+  const canBack = useCanGoBack();
+  const [refreshing, setRefreshing] = useState(false);
+  const refresh = async () => {
+    setRefreshing(true);
+    resetEngine();
+    try { await Promise.allSettled([containers.refresh(), images.refresh(), volumes.refresh(), networks.refresh(), info.refresh()]); }
+    finally { setRefreshing(false); }
+  };
 
   const counts: Partial<Record<NavId, number>> = {};
   if (cs.data) {
@@ -66,14 +74,25 @@ export function App() {
     setDecided(true);
   }, [ready, decided, envs, route.view, env]);
   if (!ready || !decided) {
-    return <div className="dk-root hue-file"><div className="dk-shell"><Skeleton height={220} style={{ borderRadius: 18, width: 220 }} /><div className="dk-main"><Skeleton height={60} style={{ borderRadius: 18 }} /><Skeleton height={260} style={{ borderRadius: 18 }} /></div></div></div>;
+    return <div className={`dk-root hue-file${native ? ' dk-native' : ''}`}><div className="dk-shell"><Skeleton height={220} style={{ borderRadius: 18, width: 220 }} /><div className="dk-main"><Skeleton height={60} style={{ borderRadius: 18 }} /><Skeleton height={260} style={{ borderRadius: 18 }} /></div></div></div>;
   }
   const home = route.view === 'environments';
   const here = env ? { name: envInfo?.name ?? env, kind: envInfo?.kind ?? 'ssh' } : { name: t('envs.local'), kind: 'local' as const };
   const hereSub = env ? [t(`envs.kind.${here.kind}`), eng.data?.info.Name].filter(Boolean).join(', ') : [t('envs.kind.local'), eng.data?.info.Name].filter(Boolean).join(', ');
 
   return (
-    <div className="dk-root hue-file">
+    <div className={`dk-root hue-file${native ? ' dk-native' : ''}`}>
+      {native && <header className="dk-native-toolbar">
+        <div className="dk-native-location">
+          <IconButton icon="chevronleft" label={t('common.back')} disabled={!canBack} onClick={back} />
+          <span className="dk-native-brand"><Icon name="box" /></span>
+          <div><strong>Docker</strong><span>{home ? t('nav.environments') : here.name}</span></div>
+        </div>
+        <div className="dk-native-actions">
+          <Button icon="server" onClick={() => navigate({ view: 'environments' }, { root: true })}>{t('nav.environments')}</Button>
+          <IconButton icon="refresh" label={t('desktop.refresh')} loading={refreshing} onClick={() => void refresh()} />
+        </div>
+      </header>}
       <div className="dk-shell">
         {!home && <nav className="dk-nav" aria-label={t('nav.aria')}>
           {multi && (
@@ -106,6 +125,7 @@ export function App() {
         </nav>}
         <div className="dk-main">
           {!home && <div className="dk-top">
+            {native && <div className="dk-native-path"><Icon name={NAV_ICONS[section]} /><span>{t(`nav.${section}`)}</span>{counts[section] !== undefined && <b>{counts[section]}</b>}</div>}
             <Input
               fieldClassName="dk-search"
               icon="search"
@@ -121,6 +141,11 @@ export function App() {
           </div>
         </div>
       </div>
+      {native && <footer className="dk-native-status">
+        <span>{eng.data ? t('shell.engine', { version: eng.data.version.Version }) : eng.error ? t('desktop.disconnected') : t('desktop.connecting')}</span>
+        {cs.data && <span>{t('desktop.running', { running: cs.data.filter((c) => c.State === 'running').length, total: cs.data.length })}</span>}
+        <span>{t('desktop.surface')}</span>
+      </footer>}
     </div>
   );
 }
