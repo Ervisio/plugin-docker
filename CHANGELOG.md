@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.3.0 - 2026-11-05
+
+- Add a native ErvisiOS Docker workspace with resource navigation, live summaries and quick access to containers, stacks, images, volumes and networks.
+- Preserve the Classic interface and all existing Docker operations, terminals, logs, file tools and environment support.
+- Suspend background plugin polling and animations when the window is minimized.
+- Require Ervisio 0.7.0 or newer and build with plugin SDK 0.4.0.
+
 ## 2.2.1 - 2026-10-30
 
 - Fix Node 24 test discovery for plugin releases
